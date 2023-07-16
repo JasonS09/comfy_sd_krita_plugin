@@ -198,18 +198,18 @@ def bytewise_xor(msg: bytes, key: bytes):
 def get_desc_from_resp(resp: dict, type: str = ""):
     """Get description of image generation from backend response."""
     try:
-        info = json.loads(resp["info"])
-        seeds = info["all_seeds"]
+        info = resp["info"]
+        names = info["all_names"]
         glayer_desc = f"""[{type}]
 Prompt: {info['prompt']},
 Negative Prompt: {info['negative_prompt']},
-Model: {info['sd_model_hash']},
+Model: {info['sd_model']},
 Sampler: {info['sampler_name']},
 Scale: {info['cfg_scale']},
 Steps: {info['steps']}"""
         layers_desc = []
-        for (seed,) in zip(seeds):
-            layers_desc.append(f"Seed: {seed}")
+        for name in names:
+            layers_desc.append(f"Name: {name}")
         return glayer_desc, layers_desc
     except:
         return f"[{type}]", cycle([None])

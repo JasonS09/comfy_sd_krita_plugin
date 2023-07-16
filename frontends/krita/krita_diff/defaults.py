@@ -23,7 +23,7 @@ CFG_NAME = "krita_diff_plugin"  # name of config file
 EXT_CFG_NAME = "krita_diff_plugin_scripts"  # name of config file
 ADD_MASK_TIMEOUT = 50
 THREADED = True
-ROUTE_PREFIX = "/sdapi/interpause/"
+ROUTE_PREFIX = ""
 OFFICIAL_ROUTE_PREFIX = "/sdapi/v1/"
 CONTROLNET_ROUTE_PREFIX = "/controlnet/"
 CONTROLNET_ROUTE_PREFIX = "/controlnet/"
@@ -211,6 +211,8 @@ class Defaults:
     txt2img_negative_prompt: str = ""
     txt2img_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     txt2img_sampler: str = "Euler a"
+    txt2img_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    txt2img_scheduler: str = "normal"
     txt2img_steps: int = 20
     txt2img_cfg_scale: float = 7.0
     txt2img_denoising_strength: float = 0.7
@@ -224,6 +226,8 @@ class Defaults:
     img2img_negative_prompt: str = ""
     img2img_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     img2img_sampler: str = "Euler a"
+    img2img_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    img2img_scheduler: str = "normal"
     img2img_steps: int = 40
     img2img_cfg_scale: float = 12.0
     img2img_denoising_strength: float = 0.8
@@ -236,6 +240,8 @@ class Defaults:
     inpaint_negative_prompt: str = ""
     inpaint_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     inpaint_sampler: str = "LMS"
+    inpaint_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    inpaint_scheduler: str = "normal"
     inpaint_steps: int = 100
     inpaint_cfg_scale: float = 5.0
     inpaint_denoising_strength: float = 0.40

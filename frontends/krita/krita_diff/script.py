@@ -8,8 +8,6 @@ from krita import (
     Krita,
     Node,
     QImage,
-    QColor,
-    QPainter,
     QObject,
     QPixmap,
     QRect,
@@ -29,6 +27,7 @@ from .defaults import (
     STATE_INTERRUPT,
     STATE_RESET_DEFAULT,
     STATE_WAIT,
+    STATE_DONE
 )
 from .utils import (
     b64_to_img,
@@ -77,6 +76,7 @@ class Script(QObject):
         self.ext_cfg = Config(name=EXT_CFG_NAME, model=None)
         self.client = Client(self.cfg, self.ext_cfg)
         self.client.status.connect(self.status_changed.emit)
+        self.client.status.connect(self.stop_update_timer)
         self.client.config_updated.connect(self.config_updated.emit)
         self.eta_timer = QTimer()
         self.eta_timer.setInterval(ETA_REFRESH_INTERVAL)
@@ -93,17 +93,14 @@ class Script(QObject):
         if not if_empty:
             self.status_changed.emit(STATE_RESET_DEFAULT)
 
-    def update_status_bar_eta(self, progress):
-        # print(progress)
-        # NOTE: progress & eta_relative is bugged upstream when there is multiple jobs
-        # so we use a substitute that seems to work
-        state = progress["state"]
-        cur_step = state["sampling_step"]
-        total_steps = state["sampling_steps"]
-        # doesnt take into account batch count
-        num_jobs = len(self.client.long_reqs) - 1
+    def stop_update_timer(self, status):
+        if status == STATE_DONE:
+            self.eta_timer.stop()
 
-        self.status_changed.emit(f"Step {cur_step}/{total_steps} ({num_jobs} in queue)")
+    def update_status_bar_eta(self, progress):
+        running = len(progress["queue_running"])
+        if running > 0:
+            self.status_changed.emit(f"Executing prompt... ({len(progress['queue_pending'])} in queue)")
 
     def update_selection(self):
         """Update references to key Krita objects as well as selection information."""
@@ -294,9 +291,8 @@ class Script(QObject):
         def cb(response):
             if len(self.client.long_reqs) == 1:  # last request
                 self.eta_timer.stop()
-            assert response is not None, "Backend Error, check terminal"
-            #response key varies for official api used for controlnet
-            outputs = response["outputs"] if not controlnet_enabled else response["images"]
+            assert response is not None
+            outputs = response["outputs"]
             glayer_name, layer_names = get_desc_from_resp(response, "txt2img")
             layers = [
                 insert(name if name else f"txt2img {i + 1}", output)
@@ -314,7 +310,7 @@ class Script(QObject):
 
         if controlnet_enabled:
             sel_image = self.get_selection_image()
-            self.client.post_official_api_txt2img(
+            self.client.post_txt2img(
                 cb, self.width, self.height, self.selection is not None, 
                 self.get_controlnet_input_images(sel_image)
             )
@@ -628,7 +624,7 @@ class Script(QObject):
         self.client.post_interrupt(cb)
 
     def action_update_eta(self):
-        self.client.get_progress(self.progress_update.emit)
+        self.client.check_progress(self.progress_update.emit)
 
 
 script = Script()

@@ -8,8 +8,6 @@ from ..widgets import (
     QSpinBoxLayout,
     StatusBar,
 )
-from .extension import ExtSectionLayout
-
 
 class SDImgPageBase(QWidget):
     def __init__(self, cfg_prefix: str, *args, **kwargs):
@@ -32,6 +30,13 @@ class SDImgPageBase(QWidget):
             label="Sampler:",
         )
 
+        self.scheduler_layout = QComboBoxLayout(
+            script.cfg,
+            f"{cfg_prefix}_scheduler_list",
+            f"{cfg_prefix}_scheduler",
+            label="Scheduler:",
+        )
+
         self.steps_layout = QSpinBoxLayout(
             script.cfg, f"{cfg_prefix}_steps", label="Steps:", min=1, max=9999, step=1
         )
@@ -43,8 +48,6 @@ class SDImgPageBase(QWidget):
             max=9999.0,
         )
 
-        self.ext_layout = ExtSectionLayout(cfg_prefix)
-
         inline_layout = QHBoxLayout()
         inline_layout.addLayout(self.steps_layout)
         inline_layout.addLayout(self.cfg_scale_layout)
@@ -53,10 +56,10 @@ class SDImgPageBase(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         layout.addWidget(self.status_bar)
-        layout.addLayout(self.ext_layout)
         layout.addLayout(self.prompt_layout)
         layout.addLayout(self.seed_layout)
         layout.addLayout(self.sampler_layout)
+        layout.addLayout(self.scheduler_layout)
         layout.addLayout(inline_layout)
 
         self.setLayout(layout)
@@ -70,19 +73,19 @@ class SDImgPageBase(QWidget):
         )
 
     def cfg_init(self):
-        self.ext_layout.cfg_init()
         self.prompt_layout.cfg_init()
         self.seed_layout.cfg_init()
         self.sampler_layout.cfg_init()
+        self.scheduler_layout.cfg_init()
         self.steps_layout.cfg_init()
         self.cfg_scale_layout.cfg_init()
         self.denoising_strength_layout.cfg_init()
 
     def cfg_connect(self):
-        self.ext_layout.cfg_connect()
         self.prompt_layout.cfg_connect()
         self.seed_layout.cfg_connect()
         self.sampler_layout.cfg_connect()
+        self.scheduler_layout.cfg_connect()
         self.steps_layout.cfg_connect()
         self.cfg_scale_layout.cfg_connect()
         self.denoising_strength_layout.cfg_connect()
