@@ -1,4 +1,5 @@
 import json
+from math import ceil
 import socket
 import uuid
 from random import randint
@@ -22,6 +23,7 @@ from .defaults import (
     STATE_READY,
     STATE_URLERROR,
     THREADED,
+    DEFAULT_NODE_IDS
 )
 from .utils import (
     bytewise_xor, 
@@ -97,13 +99,13 @@ class AsyncRequest(QObject):
         if method == "POST":
             self.data = None if data is None else json.dumps(data).encode("utf-8")
 
-        if method == "POST" and self.data is not None:
-            if self.key is not None:
+            if self.data is not None and self.key is not None:
                 # print(f"Encrypting with ${self.key}:\n{self.data}")
                 self.data = bytewise_xor(self.data, self.key)
                 # print(f"Encrypt Result:\n{self.data}")
-            self.headers["Content-Type"] = "application/json"
-            self.headers["Content-Length"] = str(len(self.data))
+                if len(headers) == 0:
+                    self.headers["Content-Type"] = "application/json"
+                    self.headers["Content-Length"] = str(len(self.data))
 
     def run(self):
         base_url = self.base_url
@@ -123,6 +125,8 @@ class AsyncRequest(QObject):
                     print(f"Decrypt Result:\n{data}")
         except Exception as e:
             self.error.emit(e)
+            self.finished.emit()
+            return
         
         try:
             self.result.emit(json.loads(data))
@@ -130,6 +134,24 @@ class AsyncRequest(QObject):
             self.result.emit(data)
         finally:
             self.finished.emit()
+
+    @classmethod
+    def request(cls, *args, **kwargs):
+        req = cls(*args, **kwargs)
+        if THREADED:
+            thread = QThread()
+            # NOTE: need to keep reference to thread or it gets destroyed
+            req.thread = thread
+            req.moveToThread(thread)
+            thread.started.connect(req.run)
+            req.finished.connect(thread.quit)
+            # NOTE: is this a memory leak?
+            # For some reason, deleteLater occurs while thread is still running, resulting in crash
+            # req.finished.connect(req.deleteLater)
+            # thread.finished.connect(thread.deleteLater)
+            return req, lambda: thread.start()
+        else:
+            return req, lambda: req.run()
 
     @classmethod
     def request(cls, *args, **kwargs):
@@ -196,12 +218,12 @@ class Client(QObject):
         def craft_response(images, history, names):
             return {
                 "info": {
-                    "prompt": history["prompt"][2]["6"]["inputs"]["text"],
-                    "negative_prompt": history["prompt"][2]["7"]["inputs"]["text"],
-                    "sd_model": history["prompt"][2]["4"]["inputs"]["ckpt_name"],
-                    "sampler_name": history["prompt"][2]["3"]["inputs"]["sampler_name"],
-                    "cfg_scale": history["prompt"][2]["3"]["inputs"]["cfg"],
-                    "steps": history["prompt"][2]["3"]["inputs"]["steps"],
+                    "prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"],
+                    "negative_prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["text"],
+                    "sd_model": history["prompt"][2][DEFAULT_NODE_IDS["CheckpointLoaderSimple"]]["inputs"]["ckpt_name"],
+                    "sampler_name": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["sampler_name"],
+                    "cfg_scale": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["cfg"],
+                    "steps": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"],
                     "all_names": names
                 },
                 "outputs": images
@@ -276,7 +298,7 @@ class Client(QObject):
         self.images_received.connect(cb)
 
     def post(
-        self, route, body, cb, base_url=..., is_long=True, ignore_no_connection=False, method = "POST"
+        self, route, body, cb, base_url=..., is_long=True, ignore_no_connection=False, method = "POST", headers = {}
     ):
         if not ignore_no_connection and not self.is_connected:
             self.status.emit(ERR_NO_CONNECTION)
@@ -290,7 +312,8 @@ class Client(QObject):
             body,
             LONG_TIMEOUT if is_long else SHORT_TIMEOUT,
             key=self.cfg("encryption_key"),
-            method = method
+            method = method,
+            headers = headers
         )
 
         if is_long:
@@ -332,11 +355,11 @@ class Client(QObject):
             "class_type": "VAEDecode",
             "inputs": {
                 "samples": [
-                    "3",
+                    DEFAULT_NODE_IDS["KSampler"],
                     0
                 ],
                 "vae": [
-                    "4",
+                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                     2
                 ]
             }
@@ -346,7 +369,7 @@ class Client(QObject):
             "inputs": {
                 "filename_prefix": "ComfyUI",
                 "images": [
-                    "8",
+                    DEFAULT_NODE_IDS["VAEDecode"],
                     0
                 ]
             }
@@ -356,17 +379,39 @@ class Client(QObject):
             "inputs": {
                 "stop_at_clip_layer": -self.cfg("clip_skip", int),
                 "clip": [
-                    "4",
+                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                     1
                 ]
             }
         }
-        return {
-            "4": checkpointloadersimple_node,
-            "8": vaedecode_node,
-            "9": saveimage_node,
-            "10": clipsetlastlayer_node
+        prompt = {
+            DEFAULT_NODE_IDS["CheckpointLoaderSimple"]: checkpointloadersimple_node,
+            DEFAULT_NODE_IDS["VAEDecode"]: vaedecode_node,
+            DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
+            DEFAULT_NODE_IDS["ClipSetLastLayer"]: clipsetlastlayer_node
         }
+
+        def loadVAE():
+            nonlocal prompt
+            vaeloader_node = {
+                "class_type": "VAELoader",
+                "inputs": {
+                    "vae_name": self.cfg("sd_vae", str)
+                }
+            }
+            prompt.update({
+                DEFAULT_NODE_IDS["VAELoader"]: vaeloader_node
+            })
+            prompt[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["vae"] = [
+                DEFAULT_NODE_IDS["VAELoader"],
+                0
+            ]
+
+        if self.cfg("sd_vae", str) != "Normal"  \
+            and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
+            loadVAE()
+
+        return prompt
 
         if controlnet_src_imgs:
             controlnet_units_param = list()
@@ -503,34 +548,35 @@ class Client(QObject):
                 if not self.cfg("txt2img_seed", str).strip() == ""
                 else randint(0, 18446744073709552000) 
             )
-            resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
-            )
+
+            resized_width, resized_height = width, height
             disable_base_and_max_size = self.cfg("disable_sddebz_highres", bool)
-            params = self.common_params(
-                resized_width if not disable_base_and_max_size else width, 
-                resized_height if not disable_base_and_max_size else height, 
-                controlnet_src_imgs
-            )
+
+            if not disable_base_and_max_size:
+                resized_width, resized_height = calculate_resized_image_dimensions(
+                    self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                )
+           
+            params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
             ksampler_node = {
                 "class_type": "KSampler",
                 "inputs": {
                     "cfg": 8,
                     "denoise": 1,
                     "model": [
-                        "4",
+                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                         0
                     ],
                     "latent_image": [
-                        "5",
+                        DEFAULT_NODE_IDS["EmptyLatentImage"],
                         0
                     ],
                     "negative": [
-                        "7",
+                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
                         0
                     ],
                     "positive": [
-                        "6",
+                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                         0
                     ],
                     "sampler_name": self.cfg("txt2img_sampler", str),
@@ -543,15 +589,15 @@ class Client(QObject):
                 "class_type": "EmptyLatentImage",
                 "inputs": {
                     "batch_size": self.cfg("sd_batch_size", int),
-                    "height": resized_height if not disable_base_and_max_size else height,
-                    "width": resized_width if not disable_base_and_max_size else width
+                    "height": resized_height,
+                    "width": resized_width
                 }
             }
             cliptextencode_pos_node = {
                 "class_type": "CLIPTextEncode",
                 "inputs": {
                     "clip": [
-                        "10",
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
                         0
                     ],
                     "text": self.cfg("txt2img_prompt", str),
@@ -561,22 +607,80 @@ class Client(QObject):
                 "class_type": "CLIPTextEncode",
                 "inputs": {
                     "clip": [
-                        "10",
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
                         0
                     ],
                     "text": self.cfg("txt2img_negative_prompt", str),
                 }
             }
+
             params.update({
-                "3": ksampler_node,
-                "5": emptylatentimage_node,
-                "6": cliptextencode_pos_node,
-                "7": cliptextencode_neg_node
+                DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
+                DEFAULT_NODE_IDS["EmptyLatentImage"]: emptylatentimage_node,
+                DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
+                DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
+
+            def upscale_latent():
+                nonlocal params 
+                latentupscale_node = {
+                    "class_type": "LatentUpscale",
+                    "inputs":{
+                        "upscale_method": self.cfg("upscaler_name", str),
+                        "width": width,
+                        "height": height,
+                        "crop": "disabled",
+                        "samples": [
+                            DEFAULT_NODE_IDS["KSampler"],
+                            0
+                        ]
+                    }
+                }
+                ksampler_upscale_node = {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "cfg": 8,
+                        "denoise": self.cfg("txt2img_denoising_strength", float),
+                        "model": [
+                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0
+                        ],
+                        "latent_image": [
+                            DEFAULT_NODE_IDS["LatentUpscale"],
+                            0
+                        ],
+                        "negative": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                            0
+                        ],
+                        "positive": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                            0
+                        ],
+                        "sampler_name": self.cfg("txt2img_sampler", str),
+                        "scheduler": self.cfg("txt2img_scheduler", str),
+                        "seed": seed,
+                        "steps": ceil(self.cfg("txt2img_steps", int)/2)
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
+                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+                })
+                params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
+                    DEFAULT_NODE_IDS["KSampler_upscale"],
+                    0
+                ]
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("txt2img_steps", int)/2)
+
+            if not disable_base_and_max_size and \
+                (min(width, height) > self.cfg("sd_base_size", int) \
+                    or max(width, height) > self.cfg("sd_max_size", int)):
+                upscale_latent()
 
             self.get_images(params, cb)
 
-    def post_official_api_img2img(self, cb, src_img, width, height, has_selection, 
+    def post_img2img(self, cb, src_img, width, height, has_selection, 
                                 controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
         params = dict(init_images=[img_to_b64(src_img)])
@@ -584,33 +688,155 @@ class Client(QObject):
             seed = (
                 int(self.cfg("img2img_seed", str))  # Qt casts int as 32-bit int
                 if not self.cfg("img2img_seed", str).strip() == ""
-                else -1
+                else randint(0, 18446744073709552000) 
             )
-            ext_name = self.cfg("img2img_script", str)
-            ext_args = get_ext_args(self.ext_cfg, "scripts_img2img", ext_name)
-            resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
-            )
+            resized_width, resized_height = width, height
             disable_base_and_max_size = self.cfg("disable_sddebz_highres", bool)
-            params.update(self.common_params(
-                has_selection, 
-                resized_width if not disable_base_and_max_size else width, 
-                resized_height if not disable_base_and_max_size else height, 
-                controlnet_src_imgs
-            ))
-            params.update(
-                prompt=fix_prompt(self.cfg("img2img_prompt", str)),
-                negative_prompt=fix_prompt(self.cfg("img2img_negative_prompt", str)),
-                sampler_name=self.cfg("img2img_sampler", str),
-                steps=self.cfg("img2img_steps", int),
-                cfg_scale=self.cfg("img2img_cfg_scale", float),
-                seed=seed,
-                denoising_strength=self.cfg("img2img_denoising_strength", float),
-                script_name=ext_name if ext_name != "None" else None,
-                script_args=ext_args if ext_name != "None" else []
-            )
 
-        url = get_url(self.cfg, prefix=OFFICIAL_ROUTE_PREFIX)
+            if not disable_base_and_max_size:
+                resized_width, resized_height = calculate_resized_image_dimensions(
+                    self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                )
+
+            params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
+            loadimage_node = {
+                "class_type": "LoadImage",
+                "inputs" : {
+                    "image": "input.png"
+                }
+            }
+            vae_id = DEFAULT_NODE_IDS["VAELoader"]
+            vaeencode_node = {
+                "class_type": "VAEEncode",
+                "inputs": {
+                    "pixels": [
+                        DEFAULT_NODE_IDS["LoadImage"],
+                        0
+                    ],
+                    "vae": [
+                        vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0 if vae_id in params else 2
+                    ]
+                }
+            }
+            ksampler_node = {
+                "class_type": "KSampler",
+                "inputs": {
+                    "cfg": 8,
+                    "denoise": 1,
+                    "model": [
+                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0
+                    ],
+                    "latent_image": [
+                        DEFAULT_NODE_IDS["VAEEncode"],
+                        0
+                    ],
+                    "negative": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                        0
+                    ],
+                    "positive": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                        0
+                    ],
+                    "sampler_name": self.cfg("img2img_sampler", str),
+                    "scheduler": self.cfg("img2img_scheduler", str),
+                    "seed": seed,
+                    "steps": self.cfg("img2img_steps", int)
+                }
+            }
+            cliptextencode_pos_node = {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "clip": [
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
+                        0
+                    ],
+                    "text": self.cfg("img2img_prompt", str),
+                }
+            }
+            cliptextencode_neg_node = {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "clip": [
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
+                        0
+                    ],
+                    "text": self.cfg("img2img_negative_prompt", str),
+                }
+            }
+
+            params.update({
+                DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
+                DEFAULT_NODE_IDS["LoadImage"]: loadimage_node,
+                DEFAULT_NODE_IDS["VAEEncode"]: vaeencode_node,
+                DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
+                DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
+            })
+
+            def upscale_latent():
+                nonlocal params 
+                latentupscale_node = {
+                    "class_type": "LatentUpscale",
+                    "inputs":{
+                        "upscale_method": self.cfg("upscaler_name", str),
+                        "width": width,
+                        "height": height,
+                        "crop": "disabled",
+                        "samples": [
+                            DEFAULT_NODE_IDS["KSampler"],
+                            0
+                        ]
+                    }
+                }
+                ksampler_upscale_node = {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "cfg": 8,
+                        "denoise": self.cfg("img2img_denoising_strength", float),
+                        "model": [
+                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0
+                        ],
+                        "latent_image": [
+                            DEFAULT_NODE_IDS["LatentUpscale"],
+                            0
+                        ],
+                        "negative": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                            0
+                        ],
+                        "positive": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                            0
+                        ],
+                        "sampler_name": self.cfg("img2img_sampler", str),
+                        "scheduler": self.cfg("img2img_scheduler", str),
+                        "seed": seed,
+                        "steps": ceil(self.cfg("img2img_steps", int)/2)
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
+                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+                })
+                params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
+                    DEFAULT_NODE_IDS["KSampler_upscale"],
+                    0
+                ]
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("img2img_steps", int)/2)
+
+            if not disable_base_and_max_size and \
+                (min(width, height) > self.cfg("sd_base_size", int) \
+                    or max(width, height) > self.cfg("sd_max_size", int)):
+                upscale_latent()
+
+        self.post("upload/image", {
+            "image": {
+                file
+            }
+        })
         self.post("img2img", params, cb, base_url=url)
 
     def post_official_api_inpaint(self, cb, src_img, mask_img, width, height, has_selection, 

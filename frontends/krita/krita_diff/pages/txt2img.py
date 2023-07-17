@@ -1,7 +1,7 @@
 from krita import QHBoxLayout, QPushButton
 
 from ..script import script
-from ..widgets import QCheckBox, TipsLayout
+from ..widgets import TipsLayout
 from .img_base import SDImgPageBase
 
 
@@ -11,14 +11,12 @@ class Txt2ImgPage(SDImgPageBase):
     def __init__(self, *args, **kwargs):
         super(Txt2ImgPage, self).__init__(cfg_prefix="txt2img", *args, **kwargs)
 
-        self.highres = QCheckBox(script.cfg, "txt2img_highres", "Highres fix")
-
+        self.denoising_strength_layout.qlabel.setText("Denoising Strength (highres fix):")
         inline_layout = QHBoxLayout()
-        inline_layout.addWidget(self.highres)
         inline_layout.addLayout(self.denoising_strength_layout)
 
         self.tips = TipsLayout(
-            ["Set base_size & max_size higher for AUTO's txt2img highres fix to work."]
+            ["Set base_size & max_size for highres fix to work."]
         )
 
         self.btn = QPushButton("Start txt2img")
@@ -30,8 +28,6 @@ class Txt2ImgPage(SDImgPageBase):
 
     def cfg_init(self):
         super(Txt2ImgPage, self).cfg_init()
-        self.highres.cfg_init()
-
         self.tips.setVisible(not script.cfg("minimize_ui", bool))
 
     def cfg_connect(self):
@@ -42,8 +38,6 @@ class Txt2ImgPage(SDImgPageBase):
             self.denoising_strength_layout.qlabel.setVisible(enabled)
             self.denoising_strength_layout.qspin.setVisible(enabled)
 
-        self.highres.cfg_connect()
-        self.highres.toggled.connect(toggle_highres)
-        toggle_highres(self.highres.isChecked())
+        toggle_highres(not script.cfg("disable_sddebz_highres", bool))
 
         self.btn.released.connect(lambda: script.action_txt2img())

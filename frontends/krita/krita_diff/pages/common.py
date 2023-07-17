@@ -54,10 +54,10 @@ class SDCommonPage(QWidget):
             script.cfg, "upscaler_list", "upscaler_name", label="Upscaler:"
         )
 
-        # Tiling mode
         self.sddebz = QCheckBox(
             script.cfg, "disable_sddebz_highres", "Disable base/max size"
         )
+
         checkboxes_layout = QHBoxLayout()
         checkboxes_layout.addWidget(self.sddebz)
 
@@ -68,13 +68,13 @@ class SDCommonPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         layout.addWidget(self.title)
-        layout.addLayout(self.upscaler_layout)
-        layout.addLayout(checkboxes_layout)
         layout.addLayout(self.sd_model_layout)
         layout.addLayout(self.sd_vae_layout)
         layout.addLayout(self.clip_skip_layout)
         layout.addLayout(batch_layout)
+        layout.addLayout(checkboxes_layout)
         layout.addLayout(size_layout)
+        layout.addLayout(self.upscaler_layout)
         layout.addWidget(self.interrupt_btn)
         layout.addStretch()
 
@@ -108,6 +108,8 @@ class SDCommonPage(QWidget):
             self.base_size_layout.qlabel.setVisible(visible)
             self.max_size_layout.qspin.setVisible(visible)
             self.max_size_layout.qlabel.setVisible(visible)
+            self.upscaler_layout.qcombo.setVisible(visible)
+            self.upscaler_layout.qlabel.setVisible(visible)
 
         self.sddebz.toggled.connect(lambda b: toggle_sddebz_highres(not b))
         toggle_sddebz_highres(not script.cfg("disable_sddebz_highres", bool))

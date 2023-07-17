@@ -45,6 +45,28 @@ TAB_CONTROLNET = "krita_diff_controlnet"
 TAB_CONTROLNET = "krita_diff_controlnet"
 TAB_PREVIEW = "krita_diff_preview"
 
+# Nodes
+
+DEFAULT_NODE_IDS = {
+    "KSampler": "3",
+    "CheckpointLoaderSimple" : "4",
+    "EmptyLatentImage": "5",
+    "ClipTextEncode_pos": "6",
+    "ClipTextEncode_neg": "7",
+    "VAEDecode": "8",
+    "SaveImage": "9",
+    "ClipSetLastLayer": "10",
+    "VAELoader": "11",
+
+    #Upscale
+    "LatentUpscale": "12",
+    "KSampler_upscale": "13",
+
+    #Img2img
+    "LoadImage": "14",
+    "VAEEncode": "15"
+}
+
 # controlnet
 CONTROLNET_PREPROCESSOR_SETTINGS = {
     "canny": {
@@ -217,7 +239,6 @@ class Defaults:
     txt2img_cfg_scale: float = 7.0
     txt2img_denoising_strength: float = 0.7
     txt2img_seed: str = ""
-    txt2img_highres: bool = False
     txt2img_script: str = "None"
     txt2img_script_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     # TODO: Seed variation
@@ -235,6 +256,7 @@ class Defaults:
     img2img_color_correct: bool = False
     img2img_script: str = "None"
     img2img_script_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    img2img_input_save_as: str = "input.png"
 
     inpaint_prompt: str = ""
     inpaint_negative_prompt: str = ""
