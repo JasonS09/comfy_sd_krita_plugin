@@ -1,7 +1,6 @@
 import itertools
 import os
 import time
-from typing import Union
 
 from krita import (
     Document,
@@ -27,8 +26,7 @@ from .defaults import (
     STATE_INTERRUPT,
     STATE_RESET_DEFAULT,
     STATE_WAIT,
-    STATE_DONE,
-    STATE_URLERROR
+    STATE_DONE
 )
 from .utils import (
     b64_to_img,
@@ -96,10 +94,15 @@ class Script(QObject):
             self.status_changed.emit(STATE_RESET_DEFAULT)
 
     def stop_update_timer(self, status):
-        if status == STATE_DONE or not self.client.is_connected:
+        if status == STATE_DONE or self.client.interrupted \
+            or not self.client.is_connected:
             self.eta_timer.stop()
 
     def update_status_bar_eta(self, progress):
+        if self.client.interrupted:
+            self.client.interrupted = False
+            return
+
         running = len(progress["queue_running"])
         if running > 0:
             self.status_changed.emit(f"Executing prompt... ({len(progress['queue_pending'])} in queue)")
@@ -169,21 +172,30 @@ class Script(QObject):
             QImage.Format_RGBA8888,
         ).rgbSwapped()
 
-    def get_mask_image(self) -> Union[QImage, None]:
+    def get_mask_image(self):
         """QImage of mask layer for inpainting"""
         if self.node.type() not in {"paintlayer", "filelayer"}:
             assert False, "Please select a valid layer to use as inpaint mask!"
         elif self.node in self._inserted_layers:
             assert False, "Selected layer was generated. Copy the layer if sure you want to use it as inpaint mask."
 
-        # Official API requires a black and white mask.
-        # Fastest way to do this: Convert to 1 channel alpha, tell it that
-        # it's grayscale, convert that to RGBA.
-        mask = mask.convertToFormat(QImage.Format_Alpha8)
-        mask.reinterpretAsFormat(QImage.Format_Grayscale8)
-        mask = mask.convertToFormat(QImage.Format_RGBA8888)
+        mask = QImage(
+            self.node.pixelData(self.x, self.y, self.width, self.height),
+            self.width,
+            self.height,
+            QImage.Format_RGBA8888
+        )
 
-        return mask.rgbSwapped()
+        transparency_mask = mask.convertToFormat(QImage.Format_Alpha8)
+        transparency_mask.reinterpretAsFormat(QImage.Format_Grayscale8)
+        transparency_mask = transparency_mask.convertToFormat(QImage.Format_RGBA8888)
+
+        if not self.cfg("inpaint_invert_mask", bool):
+            mask.invertPixels(QImage.InvertRgba) #Alpha channel is mask.
+        else:
+            transparency_mask.invertPixels()
+
+        return mask.rgbSwapped(), transparency_mask.rgbSwapped()
 
     def img_inserter(self, x, y, width, height, inpaint=False, glayer=None):
         """Return frozen image inserter to insert images as new layer."""
@@ -305,7 +317,7 @@ class Script(QObject):
 
     def apply_img2img(self, is_inpaint):
         mask_trigger = self.transparency_mask_inserter()
-        mask_image = self.get_mask_image() if is_inpaint else None
+        mask_image, transparency_mask = self.get_mask_image() if is_inpaint else None
         glayer = self.doc.createGroupLayer("Unnamed Group")
         self.doc.rootNode().addChildNode(glayer, None)
         insert = self.img_inserter(
@@ -321,7 +333,7 @@ class Script(QObject):
                 save_img(mask_image, mask_path)
             # auto-hide mask layer before getting selection image
             self.node.setVisible(False)
-            self.inpaint_transparency_mask_inserter(glayer, mask_image)
+            self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
             self.doc.refreshProjection()
 
         sel_image = self.get_selection_image()
@@ -350,14 +362,14 @@ class Script(QObject):
                 mask_trigger(layers)
 
         if is_inpaint:
-            self.client.post_official_api_inpaint(
-                cb, sel_image, mask_image, self.width, self.height, self.selection is not None,
+            self.client.post_inpaint(
+                cb, sel_image, mask_image, self.width, self.height, 
                 self.get_controlnet_input_images(sel_image))
         else:
             self.client.post_img2img(
                 cb, sel_image, self.width, self.height, self.get_controlnet_input_images(sel_image))
     
-    def inpaint_transparency_mask_inserter(self, glayer, mask_image):
+    def inpaint_transparency_mask_inserter(self, glayer, transparency_mask):
         orig_selection = self.selection.duplicate() if self.selection else None
         create_mask = self.cfg("create_mask_layer", bool)
         add_mask_action = self.app.action("add_new_transparency_mask")
@@ -375,7 +387,7 @@ class Script(QObject):
             sh = self.doc.height()
 
         # must convert mask to single channel format
-        gray_mask = mask_image.convertToFormat(QImage.Format_Grayscale8)
+        gray_mask = transparency_mask.convertToFormat(QImage.Format_Grayscale8)
         
         mw = gray_mask.width()
         mh = gray_mask.height()
@@ -558,6 +570,7 @@ class Script(QObject):
 
     def action_interrupt(self):
         def cb(resp=None):
+            self.client.interrupted = True
             self.status_changed.emit(STATE_INTERRUPT)
 
         self.client.post_interrupt(cb)

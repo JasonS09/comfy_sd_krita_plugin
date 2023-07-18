@@ -64,7 +64,12 @@ DEFAULT_NODE_IDS = {
 
     #Img2img
     "LoadBase64Image": "14",
-    "VAEEncode": "15"
+    "VAEEncode": "15",
+
+    #Inpaint
+    "LoadBase64ImageMask": "16",
+    "VAEEncodeForInpaint": "17",
+    "SetLatentNoiseMask": "18"
 }
 
 # controlnet
@@ -271,8 +276,7 @@ class Defaults:
     inpaint_invert_mask: bool = False
     # inpaint_mask_blur: int = 4
     inpaint_fill_list: List[str] = field(
-        # NOTE: list order corresponds to number to use in internal API!!!
-        default_factory=lambda: ["blur", "preserve", "latent noise", "latent empty"]
+        default_factory=lambda: ["preserve", "latent noise"]
     )
     inpaint_fill: str = "preserve"
     # inpaint_full_res: bool = False

@@ -1,10 +1,8 @@
 import json
 import socket
 import uuid
-import string
-import mimetypes
 from math import ceil
-from random import randint, choice
+from random import randint
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urljoin, urlparse, urlencode
@@ -36,8 +34,6 @@ from .defaults import (
 )
 from .utils import (
     bytewise_xor, 
-    fix_prompt, 
-    get_ext_args, 
     img_to_b64, 
     calculate_resized_image_dimensions
 )
@@ -172,9 +168,8 @@ class Client(QObject):
         self.long_reqs = set()
         # NOTE: this is a hacky workaround for detecting if backend is reachable
         self.is_connected = False
+        self.interrupted = False
         self.client_id = str(uuid.uuid4())
-        self.response = {}
-        self.timer = QTimer()
         self.conn = lambda s: None
 
     def handle_api_error(self, exc: Exception):
@@ -217,19 +212,18 @@ class Client(QObject):
             }
         
         def on_history_received(history_res):
-            self.response["images_output"] = []
-            self.response["names"] = []
-            self.response["history"] = {}
+            images_output = []
 
             def on_image_received(img):
                 assert img is not None, "Backend Error, check terminal"
                 qimage = QImage()
                 qimage.loadFromData(img)
-                self.response["images_output"].append(img_to_b64(qimage))
+                images_output.append(img_to_b64(qimage))
 
             assert history_res is not None, "Backend Error, check terminal"
 
-            history = self.response["history"] = history_res[prompt_id]
+            history = history_res[prompt_id]
+            names = []
             i = 0
             for node_id in history['outputs']:
                 node_output = history['outputs'][node_id]
@@ -237,18 +231,18 @@ class Client(QObject):
                     for image in node_output['images']:
                         i+=1
                         self.get_image(image['filename'], image['subfolder'], image['type'], on_image_received)
-                        self.response["names"].append(image["filename"])
+                        names.append(image["filename"])
                             
-            def check_if_populated(i): #Check if all images are in the list before sending the response to script.
-                if len(self.response["images_output"]) == i:
-                    self.timer.stop()
-                    response = craft_response(self.response["images_output"], history, self.response["names"])
+            def check_if_populated(): #Check if all images are in the list before sending the response to script.
+                if len(images_output) == i:
+                    timer.stop()
+                    response = craft_response(images_output, history, names)
                     self.images_received.emit(response)
-                    self.response.clear()
 
             if i != 0:
-                self.timer.timeout.connect(lambda: check_if_populated(i))
-                self.timer.start(0.05)
+                timer = QTimer()
+                timer.timeout.connect(check_if_populated)
+                timer.start(0.05)
                     
         if status == STATE_DONE:
             self.status.disconnect(self.conn) #Prevent undesired executions of this function.
@@ -267,7 +261,8 @@ class Client(QObject):
 
     def check_progress(self, cb):
         def on_progress_checked(res):
-            if len(res["queue_running"]) == 0 and self.is_connected:
+            if not self.interrupted and len(res["queue_running"]) == 0 \
+                  and self.is_connected:
                 self.status.emit(STATE_DONE)
             
             cb(res)
@@ -820,56 +815,203 @@ class Client(QObject):
 
         self.get_images(params, cb)
 
-    def post_official_api_inpaint(self, cb, src_img, mask_img, width, height, has_selection, 
-                                controlnet_src_imgs: dict = {}):
-        """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
+    def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
+        """Leave controlnet_src_imgs empty to not use controlnet."""
         assert mask_img, "Inpaint layer is needed for inpainting!"
-        params = dict(
-            init_images=[img_to_b64(src_img)], mask=img_to_b64(mask_img)
-        )
+        preserve = self.cfg("inpaint_fill", str) == "preserve"
         if not self.cfg("just_use_yaml", bool):
             seed = (
                 int(self.cfg("inpaint_seed", str))  # Qt casts int as 32-bit int
                 if not self.cfg("inpaint_seed", str).strip() == ""
-                else -1
+                else randint(0, 18446744073709552000)
             )
-            fill = self.cfg("inpaint_fill_list", "QStringList").index(
-                self.cfg("inpaint_fill", str)
-            )
-            ext_name = self.cfg("inpaint_script", str)
-            ext_args = get_ext_args(self.ext_cfg, "scripts_inpaint", ext_name)
-            resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
-            )
-            invert_mask = self.cfg("inpaint_invert_mask", bool)
+            resized_width, resized_height = width, height
             disable_base_and_max_size = self.cfg("disable_sddebz_highres", bool)
-            params.update(self.common_params(
-                has_selection, 
-                resized_width if not disable_base_and_max_size else width, 
-                resized_height if not disable_base_and_max_size else height, 
-                controlnet_src_imgs
-            ))
-            params.update(
-                prompt=fix_prompt(self.cfg("inpaint_prompt", str)),
-                negative_prompt=fix_prompt(self.cfg("inpaint_negative_prompt", str)),
-                sampler_name=self.cfg("inpaint_sampler", str),
-                steps=self.cfg("inpaint_steps", int),
-                cfg_scale=self.cfg("inpaint_cfg_scale", float),
-                seed=seed,
-                denoising_strength=self.cfg("inpaint_denoising_strength", float),
-                script_name=ext_name if ext_name != "None" else None,
-                script_args=ext_args if ext_name != "None" else [],
-                inpainting_mask_invert=0 if not invert_mask else 1,
-                inpainting_fill=fill,
-                mask_blur=0,
-                inpaint_full_res=False
-                #not sure what's the equivalent of mask weight for official API
-            )
 
-            params["override_settings"]["return_grid"] = False
+            if not disable_base_and_max_size:
+                resized_width, resized_height = calculate_resized_image_dimensions(
+                    self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                )
 
-        url = get_url(self.cfg, prefix=OFFICIAL_ROUTE_PREFIX)
-        self.post("img2img", params, cb, base_url=url)
+            params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
+            loadimage_node = {
+                "class_type": "LoadBase64Image",
+                "inputs" : {
+                    "image": img_to_b64(src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio))
+                }
+            }
+            loadmask_node = {
+                "class_type": "LoadBase64ImageMask",
+                "inputs" : {
+                    "image": img_to_b64(mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)),
+                    "channel": "alpha"
+                }
+            }
+            vae_id = DEFAULT_NODE_IDS["VAELoader"]
+            if preserve:
+                vaeencode_node = {
+                    "class_type": "VAEEncode",
+                    "inputs": {
+                        "pixels": [
+                            DEFAULT_NODE_IDS["LoadBase64Image"],
+                            0
+                        ],
+                        "vae": [
+                            vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0 if vae_id in params else 2
+                        ]
+                    }
+                }
+                setlatentnoisemask_node = {
+                    "class_type": "SetLatentNoiseMask",
+                    "inputs": {
+                        "samples": [
+                            DEFAULT_NODE_IDS["VAEEncode"],
+                            0
+                        ],
+                        "mask": [
+                            DEFAULT_NODE_IDS["LoadBase64ImageMask"],
+                            0
+                        ]
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["SetLatentNoiseMask"]: setlatentnoisemask_node
+                })
+            else:
+                vaeencode_node = {
+                    "class_type": "VAEEncodeForInpaint",
+                    "inputs": {
+                        "grow_mask_by": 6,
+                        "pixels": [
+                            DEFAULT_NODE_IDS["LoadBase64Image"],
+                            0
+                        ],
+                        "mask": [
+                            DEFAULT_NODE_IDS["LoadBase64ImageMask"],
+                            0
+                        ],
+                        "vae": [
+                            vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0 if vae_id in params else 2
+                        ]
+                    }
+                }
+            ksampler_node = {
+                "class_type": "KSampler",
+                "inputs": {
+                    "cfg": 8,
+                    "denoise": self.cfg("inpaint_denoising_strength", float),
+                    "model": [
+                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0
+                    ],
+                    "latent_image": [
+                        DEFAULT_NODE_IDS["SetLatentNoiseMask"] if preserve else DEFAULT_NODE_IDS["VAEEncodeForInpaint"],
+                        0
+                    ],
+                    "negative": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                        0
+                    ],
+                    "positive": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                        0
+                    ],
+                    "sampler_name": self.cfg("inpaint_sampler", str),
+                    "scheduler": self.cfg("inpaint_scheduler", str),
+                    "seed": seed,
+                    "steps": self.cfg("inpaint_steps", int)
+                }
+            }
+            cliptextencode_pos_node = {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "clip": [
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
+                        0
+                    ],
+                    "text": self.cfg("inpaint_prompt", str),
+                }
+            }
+            cliptextencode_neg_node = {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "clip": [
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
+                        0
+                    ],
+                    "text": self.cfg("inpaint_negative_prompt", str),
+                }
+            }
+            VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if preserve else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
+            params.update({
+                DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
+                DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node,
+                DEFAULT_NODE_IDS["LoadBase64ImageMask"]: loadmask_node,
+                VAEEncode_id: vaeencode_node,
+                DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
+                DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
+            })
+
+            def upscale_latent():
+                nonlocal params 
+                latentupscale_node = {
+                    "class_type": "LatentUpscale",
+                    "inputs":{
+                        "upscale_method": self.cfg("upscaler_name", str),
+                        "width": width,
+                        "height": height,
+                        "crop": "disabled",
+                        "samples": [
+                            DEFAULT_NODE_IDS["KSampler"],
+                            0
+                        ]
+                    }
+                }
+                ksampler_upscale_node = {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "cfg": 8,
+                        "denoise": self.cfg("inpaint_denoising_strength", float),
+                        "model": [
+                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0
+                        ],
+                        "latent_image": [
+                            DEFAULT_NODE_IDS["LatentUpscale"],
+                            0
+                        ],
+                        "negative": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                            0
+                        ],
+                        "positive": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                            0
+                        ],
+                        "sampler_name": self.cfg("inpaint_sampler", str),
+                        "scheduler": self.cfg("inpaint_scheduler", str),
+                        "seed": seed,
+                        "steps": ceil(self.cfg("inpaint_steps", int)/2)
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
+                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+                })
+                params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
+                    DEFAULT_NODE_IDS["KSampler_upscale"],
+                    0
+                ]
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("inpaint_steps", int)/2)
+
+            if not disable_base_and_max_size and \
+                (min(width, height) > self.cfg("sd_base_size", int) \
+                    or max(width, height) > self.cfg("sd_max_size", int)):
+                upscale_latent()
+
+        self.get_images(params, cb)
 
     def post_upscale(self, cb, src_img):
         params = (
@@ -938,7 +1080,7 @@ class Client(QObject):
         self.post("detect", params, cb, url)
 
     def post_interrupt(self, cb):
-        self.post("interrupt", {}, cb)
+        self.post("interrupt", {}, cb, is_long=False)
 
     # def get_progress(self, cb):
      #    self.get("progress", cb)

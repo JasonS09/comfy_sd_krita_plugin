@@ -1,7 +1,7 @@
 from krita import QHBoxLayout, QPushButton
 
 from ..script import script
-from ..widgets import QCheckBox, QComboBoxLayout, QSpinBoxLayout, TipsLayout
+from ..widgets import QCheckBox, QComboBoxLayout, TipsLayout
 from .img_base import SDImgPageBase
 
 
@@ -13,35 +13,15 @@ class InpaintPage(SDImgPageBase):
         self.layout.addLayout(self.denoising_strength_layout)
 
         self.invert_mask = QCheckBox(script.cfg, "inpaint_invert_mask", "Invert mask")
-        # self.mask_blur_layout = QSpinBoxLayout(
-        #     script.cfg, "inpaint_mask_blur", "Mask blur (px):", min=0, max=9999, step=1
-        # )
-        self.inpaint_mask_weight = QSpinBoxLayout(
-            script.cfg, "inpaint_mask_weight", "Mask weight:", step=0.01
-        )
 
         inline1 = QHBoxLayout()
         inline1.addWidget(self.invert_mask)
-        inline1.addLayout(self.inpaint_mask_weight)
-        # inline1.addLayout(self.mask_blur_layout)
 
         self.fill_layout = QComboBoxLayout(
             script.cfg, "inpaint_fill_list", "inpaint_fill", label="Inpaint fill:"
         )
 
-        # self.full_res = QCheckBox(script.cfg, "inpaint_full_res", "Inpaint full res")
-        # self.full_res_padding_layout = QSpinBoxLayout(
-        #     script.cfg,
-        #     "inpaint_full_res_padding",
-        #     "Padding (px):",
-        #     min=0,
-        #     max=9999,
-        #     step=1,
-        # )
-
         inline2 = QHBoxLayout()
-        # inline2.addWidget(self.full_res)
-        # inline2.addLayout(self.full_res_padding_layout)
 
         self.tips = TipsLayout(
             [
@@ -69,7 +49,6 @@ class InpaintPage(SDImgPageBase):
         super(InpaintPage, self).cfg_init()
         # self.mask_blur_layout.cfg_init()
         self.fill_layout.cfg_init()
-        self.inpaint_mask_weight.cfg_init()
         # self.full_res_padding_layout.cfg_init()
         self.invert_mask.cfg_init()
         # self.full_res.cfg_init()
@@ -80,7 +59,6 @@ class InpaintPage(SDImgPageBase):
         super(InpaintPage, self).cfg_connect()
         # self.mask_blur_layout.cfg_connect()
         self.fill_layout.cfg_connect()
-        self.inpaint_mask_weight.cfg_connect()
         # self.full_res_padding_layout.cfg_connect()
 
         self.invert_mask.cfg_connect()
