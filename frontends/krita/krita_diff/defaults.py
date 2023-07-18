@@ -63,7 +63,7 @@ DEFAULT_NODE_IDS = {
     "KSampler_upscale": "13",
 
     #Img2img
-    "LoadImage": "14",
+    "LoadBase64Image": "14",
     "VAEEncode": "15"
 }
 
@@ -204,7 +204,7 @@ class Defaults:
     only_full_img_tiling: bool = True
     filter_nsfw: bool = False
     do_exact_steps: bool = True
-    sample_path: str = "."
+    sample_path: str = "./tmp"
     minimize_ui: bool = False
     first_setup: bool = True  # only used for the initial docker layout
     alt_dock_behavior: bool = False

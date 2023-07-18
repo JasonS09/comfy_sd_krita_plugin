@@ -1,14 +1,23 @@
 import json
-from math import ceil
 import socket
 import uuid
-from random import randint
+import string
+import mimetypes
+from math import ceil
+from random import randint, choice
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urljoin, urlparse, urlencode
 from urllib.request import Request, urlopen
 
-from krita import QImage, QObject, QThread, pyqtSignal, QTimer
+from krita import (
+    Qt,
+    QImage, 
+    QObject, 
+    QThread, 
+    pyqtSignal, 
+    QTimer
+)
 
 from .config import Config
 from .defaults import (
@@ -48,8 +57,7 @@ def get_url(cfg: Config, route: str = ..., prefix: str = ROUTE_PREFIX):
         url = urljoin(url, route)
     # print("url:", url)
     return url
-
-
+    
 # krita doesn't reexport QtNetwork
 class AsyncRequest(QObject):
     timeout = None
@@ -78,9 +86,11 @@ class AsyncRequest(QObject):
             timeout (int, optional): Timeout for request. Defaults to `...`.
             method (str, optional): Which HTTP method to use. Defaults to `...`.
             key (Union[str, None], Optional): Key to use for encryption/decryption. Defaults to None.
+            headers (dict, optional): dictionary of headers to send to request.
+            is_upload: if set to true, request will be sent as multipart/form-data type.
         """
         super(AsyncRequest, self).__init__()
-        self.base_url = base_url
+        self.url = base_url
         self.data = data
         self.headers = {} if headers is ... else headers
 
@@ -103,17 +113,15 @@ class AsyncRequest(QObject):
                 # print(f"Encrypting with ${self.key}:\n{self.data}")
                 self.data = bytewise_xor(self.data, self.key)
                 # print(f"Encrypt Result:\n{self.data}")
-                if len(headers) == 0:
-                    self.headers["Content-Type"] = "application/json"
-                    self.headers["Content-Length"] = str(len(self.data))
+                self.headers["Content-Type"] = "application/json"
+                self.headers["Content-Length"] = str(len(self.data))
 
     def run(self):
-        base_url = self.base_url
-        if self.method == "GET":
-            base_url = base_url if self.data is None else f"{self.base_url}?{urlencode(self.data)}"
-
-        req = Request(base_url, headers=self.headers, method=self.method)
         try:
+            url = self.url
+            if self.method == "GET":
+                url = url if self.data is None else f"{self.url}?{urlencode(self.data)}"
+            req = Request(url, headers=self.headers, method=self.method)
             with urlopen(req, self.data if self.method == "POST" else None, self.timeout) as res:
                 data = res.read()
                 enc_type = res.getheader("X-Encrypted-Body", None)
@@ -122,36 +130,14 @@ class AsyncRequest(QObject):
                     assert self.key, f"Key needed to decrypt server response!"
                     print(f"Decrypting with ${self.key}:\n{data}")
                     data = bytewise_xor(data, self.key)
-                    print(f"Decrypt Result:\n{data}")
-        except Exception as e:
-            self.error.emit(e)
-            self.finished.emit()
-            return
-        
-        try:
-            self.result.emit(json.loads(data))
+                self.result.emit(json.loads(data))
         except ValueError as e:
             self.result.emit(data)
+        except Exception as e:
+            self.error.emit(e)
+            return
         finally:
             self.finished.emit()
-
-    @classmethod
-    def request(cls, *args, **kwargs):
-        req = cls(*args, **kwargs)
-        if THREADED:
-            thread = QThread()
-            # NOTE: need to keep reference to thread or it gets destroyed
-            req.thread = thread
-            req.moveToThread(thread)
-            thread.started.connect(req.run)
-            req.finished.connect(thread.quit)
-            # NOTE: is this a memory leak?
-            # For some reason, deleteLater occurs while thread is still running, resulting in crash
-            # req.finished.connect(req.deleteLater)
-            # thread.finished.connect(thread.deleteLater)
-            return req, lambda: thread.start()
-        else:
-            return req, lambda: req.run()
 
     @classmethod
     def request(cls, *args, **kwargs):
@@ -175,6 +161,7 @@ class Client(QObject):
     status = pyqtSignal(str)
     config_updated = pyqtSignal()
     images_received = pyqtSignal(object)
+    prompt_sent = pyqtSignal()
 
     def __init__(self, cfg: Config, ext_cfg: Config):
         """It is highly dependent on config's structure to the point it writes directly to it. :/"""
@@ -280,7 +267,7 @@ class Client(QObject):
 
     def check_progress(self, cb):
         def on_progress_checked(res):
-            if len(res["queue_running"]) == 0:
+            if len(res["queue_running"]) == 0 and self.is_connected:
                 self.status.emit(STATE_DONE)
             
             cb(res)
@@ -290,6 +277,7 @@ class Client(QObject):
     def get_images(self, prompt, cb):
         def on_prompt_received(prompt_res):
             assert prompt_res is not None, "Backend Error, check terminal"
+            self.prompt_sent.emit()
             prompt_id = prompt_res['prompt_id']
             self.conn = lambda s: self.on_images_received(s, prompt_id) 
             self.status.connect(self.conn)
@@ -680,10 +668,8 @@ class Client(QObject):
 
             self.get_images(params, cb)
 
-    def post_img2img(self, cb, src_img, width, height, has_selection, 
-                                controlnet_src_imgs: dict = {}):
-        """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
-        params = dict(init_images=[img_to_b64(src_img)])
+    def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
+        """Leave controlnet_src_imgs empty to not use controlnet."""
         if not self.cfg("just_use_yaml", bool):
             seed = (
                 int(self.cfg("img2img_seed", str))  # Qt casts int as 32-bit int
@@ -700,9 +686,9 @@ class Client(QObject):
 
             params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
             loadimage_node = {
-                "class_type": "LoadImage",
+                "class_type": "LoadBase64Image",
                 "inputs" : {
-                    "image": "input.png"
+                    "image": img_to_b64(src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio))
                 }
             }
             vae_id = DEFAULT_NODE_IDS["VAELoader"]
@@ -710,7 +696,7 @@ class Client(QObject):
                 "class_type": "VAEEncode",
                 "inputs": {
                     "pixels": [
-                        DEFAULT_NODE_IDS["LoadImage"],
+                        DEFAULT_NODE_IDS["LoadBase64Image"],
                         0
                     ],
                     "vae": [
@@ -723,7 +709,7 @@ class Client(QObject):
                 "class_type": "KSampler",
                 "inputs": {
                     "cfg": 8,
-                    "denoise": 1,
+                    "denoise": self.cfg("img2img_denoising_strength", float),
                     "model": [
                         DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                         0
@@ -769,7 +755,7 @@ class Client(QObject):
 
             params.update({
                 DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
-                DEFAULT_NODE_IDS["LoadImage"]: loadimage_node,
+                DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node,
                 DEFAULT_NODE_IDS["VAEEncode"]: vaeencode_node,
                 DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
@@ -832,12 +818,7 @@ class Client(QObject):
                     or max(width, height) > self.cfg("sd_max_size", int)):
                 upscale_latent()
 
-        self.post("upload/image", {
-            "image": {
-                file
-            }
-        })
-        self.post("img2img", params, cb, base_url=url)
+        self.get_images(params, cb)
 
     def post_official_api_inpaint(self, cb, src_img, mask_img, width, height, has_selection, 
                                 controlnet_src_imgs: dict = {}):

@@ -215,37 +215,38 @@ Steps: {info['steps']}"""
     except:
         return f"[{type}]", cycle([None])
 
-def body(fileName):
-    '''For multipart/form-data requests'''
-    def generate_webkit_boundary():
-        # Create an empty string
-        boundary = ""
-        # Append 16 hyphens
-        boundary += "-" * 6
-        boundary += "WebKitFormBoundary"
-        # Append 16 random alphanumeric characters
-        for i in range(16):
-            # Choose a random character from the alphabet and digits
-            char = random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-            # Append the character to the boundary
-            boundary += char
-        # Return the boundary
-        return boundary
+# def body(fileName, data):
+#     '''For multipart/form-data requests'''
+#     def generate_webkit_boundary():
+#         # Create an empty string
+#         boundary = ""
+#         # Append 16 hyphens
+#         boundary += "-" * 6
+#         boundary += "WebKitFormBoundary"
+#         # Append 16 random alphanumeric characters
+#         for i in range(16):
+#             # Choose a random character from the alphabet and digits
+#             char = random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+#             # Append the character to the boundary
+#             boundary += char
+#         # Return the boundary
+#         return boundary
     
-    boundary = generate_webkit_boundary()
+#     boundary = generate_webkit_boundary()
 
-    # Add boundary and header
-    data = boundary + '\r\n'
-    data += f'Content-Disposition: form-data; name="image"; filename={fileName}' + '\r\n'
+#     # Add boundary and header
+#     data = boundary + '\r\n'
+#     data += f'Content-Disposition: form-data; name="image"; filename={fileName}' + '\r\n'
 
-    fileType = "image/png"
-    data += f'Content-Type: {fileType}' + '\r\n'
-    data +='\r\n'
+#     fileType = "image/png"
+#     data += f'Content-Type: {fileType}' + '\r\n'
+#     data += 
+#     data +='\r\n'
 
-    data += boundary+'--' + '\r\n'
-    data += '' + '\r\n'
+#     data += boundary+'--' + '\r\n'
+#     data += '' + '\r\n'
 
-    return data
+#     return data
 
 def reset_docker_layout():
     """NOTE: Default stacking of dockers hardcoded here."""

@@ -82,6 +82,7 @@ class Script(QObject):
         self.eta_timer = QTimer()
         self.eta_timer.setInterval(ETA_REFRESH_INTERVAL)
         self.eta_timer.timeout.connect(lambda: self.action_update_eta())
+        self.client.prompt_sent.connect(lambda: self.eta_timer.start())
         self.progress_update.connect(lambda p: self.update_status_bar_eta(p))
         # keep track of inserted layers to prevent accidental usage as inpaint mask
         self._inserted_layers = []
@@ -95,7 +96,7 @@ class Script(QObject):
             self.status_changed.emit(STATE_RESET_DEFAULT)
 
     def stop_update_timer(self, status):
-        if status == STATE_DONE or STATE_URLERROR in status:
+        if status == STATE_DONE or not self.client.is_connected:
             self.eta_timer.stop()
 
     def update_status_bar_eta(self, progress):
@@ -296,11 +297,9 @@ class Script(QObject):
             self.doc.refreshProjection()
             mask_trigger(layers)
 
-        self.eta_timer.start(ETA_REFRESH_INTERVAL)
-
         sel_image = self.get_selection_image()
         self.client.post_txt2img(
-            cb, self.width, self.height, self.selection is not None, 
+            cb, self.width, self.height, 
             self.get_controlnet_input_images(sel_image)
         )
 
@@ -350,15 +349,13 @@ class Script(QObject):
             if not is_inpaint:
                 mask_trigger(layers)
 
-        self.eta_timer.start()
         if is_inpaint:
             self.client.post_official_api_inpaint(
                 cb, sel_image, mask_image, self.width, self.height, self.selection is not None,
                 self.get_controlnet_input_images(sel_image))
         else:
             self.client.post_img2img(
-                cb, sel_image, self.width, self.height, self.selection is not None,
-                self.get_controlnet_input_images(sel_image))
+                cb, sel_image, self.width, self.height, self.get_controlnet_input_images(sel_image))
     
     def inpaint_transparency_mask_inserter(self, glayer, mask_image):
         orig_selection = self.selection.duplicate() if self.selection else None
