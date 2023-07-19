@@ -444,7 +444,7 @@ class Script(QObject):
 
         def cb(response):
             assert response is not None, "Backend Error, check terminal"
-            output = response["output"]
+            output = response["outputs"]
             insert(f"upscale", output)
             self.doc.refreshProjection()
 

@@ -198,18 +198,24 @@ class Client(QObject):
 
     def on_images_received(self, status, prompt_id):
         def craft_response(images, history, names):
-            return {
-                "info": {
-                    "prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"],
-                    "negative_prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["text"],
-                    "sd_model": history["prompt"][2][DEFAULT_NODE_IDS["CheckpointLoaderSimple"]]["inputs"]["ckpt_name"],
-                    "sampler_name": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["sampler_name"],
-                    "cfg_scale": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["cfg"],
-                    "steps": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"],
-                    "all_names": names
-                },
-                "outputs": images
-            }
+            try:
+                return {
+                    "info": {
+                        "prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"],
+                        "negative_prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["text"],
+                        "sd_model": history["prompt"][2][DEFAULT_NODE_IDS["CheckpointLoaderSimple"]]["inputs"]["ckpt_name"],
+                        "sampler_name": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["sampler_name"],
+                        "cfg_scale": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["cfg"],
+                        "steps": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"],
+                        "all_names": names
+                    },
+                    "outputs": images
+                }
+            except KeyError:
+                return {
+                    "info": {},
+                    "outputs": images[0] #Assuming it's the result of a simple upscale.
+                }
         
         def on_history_received(history_res):
             images_output = []
@@ -431,11 +437,12 @@ class Client(QObject):
                     ]
                 }
             }
+        denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
         ksampler_upscale_node = {
             "class_type": "KSampler",
             "inputs": {
                 "cfg": 8,
-                "denoise": self.cfg(f"{cfg_prefix}_denoising_strength", float),
+                "denoise": denoise if denoise < 1 else 0.30,
                 "model": [
                     DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                     0
@@ -460,6 +467,110 @@ class Client(QObject):
         }
         params.update({
             DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
+            DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+        })
+        params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
+            DEFAULT_NODE_IDS["KSampler_upscale"],
+            0
+        ]
+        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("inpaint_steps", int)/2)
+
+    def upscale_with_model(self, params, width, height, seed, cfg_prefix):
+        '''Call only when base prompt structure is already stored in params,
+        otherwise will probably not work'''
+        vae_id = DEFAULT_NODE_IDS["VAELoader"]
+        vaedecode_upscale_node = {
+            "class_type": "VAEDecode",
+            "inputs": {
+                "samples": [
+                    DEFAULT_NODE_IDS["KSampler"],
+                    0
+                ],
+                "vae": [
+                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],   
+                    0 if vae_id in params else 2
+                ]
+            }
+        }
+        upscalemodelloader_node = {
+            "class_type": "UpscaleModelLoader",
+            "inputs": {
+                "model_name": self.cfg(f"upscaler_name", str)
+            }
+        }
+        imageupscalewithmodel_node = {
+            "class_type": "ImageUpscaleWithModel",
+            "inputs": {
+                "upscale_model": [
+                    DEFAULT_NODE_IDS["UpscaleModelLoader"],
+                    0
+                ],
+                "image": [
+                    DEFAULT_NODE_IDS["VAEDecode_upscale"],
+                    0
+                ]
+            }
+        }
+        scaleimage_node = {
+            "class_type": "ImageScale",
+            "inputs": {
+                "upscale_method": "bilinear",
+                "width": width,
+                "height": height,
+                "crop": "disabled",
+                "image": [
+                    DEFAULT_NODE_IDS["ImageUpscaleWithModel"],
+                    0
+                ]
+            }
+        }
+        vaeencode_upscale_node = {
+            "class_type": "VAEEncode",
+            "inputs": {
+                "pixels": [
+                    DEFAULT_NODE_IDS["ImageScale"],
+                    0
+                ],
+                "vae": [
+                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],   
+                    0 if vae_id in params else 2
+                ]
+            }
+        }
+        denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
+        ksampler_upscale_node = {
+            "class_type": "KSampler",
+            "inputs": {
+                "cfg": 8,
+                "denoise": denoise if denoise < 1 else 0.30,
+                "model": [
+                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                    0
+                ],
+                "latent_image": [
+                    DEFAULT_NODE_IDS["VAEEncode_upscale"],
+                    0
+                ],
+                "negative": [
+                    DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                    0
+                ],
+                "positive": [
+                    DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                    0
+                ],
+                "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
+                "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
+                "seed": seed,
+                "steps": ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
+            }
+        }
+        params.update({
+            DEFAULT_NODE_IDS["VAEDecode_upscale"]: vaedecode_upscale_node,
+            DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
+            DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
+            DEFAULT_NODE_IDS["ImageScale"]: scaleimage_node,
+            DEFAULT_NODE_IDS["VAEEncode_upscale"]: vaeencode_upscale_node,
             DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
         })
         params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
@@ -509,8 +620,12 @@ class Client(QObject):
             except:
                 return
             
-            node = obj["LatentUpscale"]["input"]["required"]
-            self.cfg.set("upscaler_list", node["upscale_method"][0])
+            if "LatentUpscale" in obj:
+                node = obj["LatentUpscale"]["input"]["required"]
+                self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
+            if "UpscaleModelLoader" in obj:
+                node = obj["UpscaleModelLoader"]["input"]["required"]
+                self.cfg.set("upscaler_model_list", node["model_name"][0])
         
         def on_get_sampler_data(obj):
             try:
@@ -547,6 +662,7 @@ class Client(QObject):
         self.get(f"/object_info/LatentUpscale", on_get_upscalers, ignore_no_connection=True)
         self.get(f"/object_info/KSampler", on_get_sampler_data, ignore_no_connection=True)
         self.get(f"/object_info/CheckpointLoaderSimple", on_get_models, ignore_no_connection=True)
+        self.get(f"/object_info/UpscaleModelLoader", on_get_upscalers, ignore_no_connection=True)
         self.get(f"/object_info/VAELoader", on_get_VAE, ignore_no_connection=True)
 
     def get_controlnet_config(self):
@@ -657,10 +773,15 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            if not disable_base_and_max_size and \
+            upscaler_name = self.cfg("upscaler_name", str)
+            if not disable_base_and_max_size and not upscaler_name == "None" and\
                 (min(width, height) > self.cfg("sd_base_size", int) \
                     or max(width, height) > self.cfg("sd_max_size", int)):
-                self.upscale_latent(params, width, height, seed, "txt2img")
+                upscaler_name = self.cfg("upscaler_name", str)
+                if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
+                    self.upscale_with_model(params, width, height, seed, "txt2img")
+                else:
+                    self.upscale_latent(params, width, height, seed, "txt2img")
 
             self.get_images(params, cb)
 
@@ -757,62 +878,14 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            def upscale_latent():
-                nonlocal params 
-                latentupscale_node = {
-                    "class_type": "LatentUpscale",
-                    "inputs":{
-                        "upscale_method": self.cfg("upscaler_name", str),
-                        "width": width,
-                        "height": height,
-                        "crop": "disabled",
-                        "samples": [
-                            DEFAULT_NODE_IDS["KSampler"],
-                            0
-                        ]
-                    }
-                }
-                ksampler_upscale_node = {
-                    "class_type": "KSampler",
-                    "inputs": {
-                        "cfg": 8,
-                        "denoise": self.cfg("img2img_denoising_strength", float),
-                        "model": [
-                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                            0
-                        ],
-                        "latent_image": [
-                            DEFAULT_NODE_IDS["LatentUpscale"],
-                            0
-                        ],
-                        "negative": [
-                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                            0
-                        ],
-                        "positive": [
-                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                            0
-                        ],
-                        "sampler_name": self.cfg("img2img_sampler", str),
-                        "scheduler": self.cfg("img2img_scheduler", str),
-                        "seed": seed,
-                        "steps": ceil(self.cfg("img2img_steps", int)/2)
-                    }
-                }
-                params.update({
-                    DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
-                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
-                })
-                params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
-                    DEFAULT_NODE_IDS["KSampler_upscale"],
-                    0
-                ]
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("img2img_steps", int)/2)
-
-            if not disable_base_and_max_size and \
+            upscaler_name = self.cfg("upscaler_name", str)
+            if not disable_base_and_max_size and not upscaler_name == "None" and\
                 (min(width, height) > self.cfg("sd_base_size", int) \
                     or max(width, height) > self.cfg("sd_max_size", int)):
-                self.upscale_latent(params, width, height, seed, "img2img")
+                if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
+                    self.upscale_with_model(params, width, height, seed, "img2img")
+                else:
+                    self.upscale_latent(params, width, height, seed, "img2img")
 
         self.get_images(params, cb)
 
@@ -955,52 +1028,151 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            if not disable_base_and_max_size and \
+            upscaler_name = self.cfg("upscaler_name", str)
+            if not disable_base_and_max_size and not upscaler_name == "None" and\
                 (min(width, height) > self.cfg("sd_base_size", int) \
-                    or max(width, height) > self.cfg("sd_max_size", int)):
-                self.upscale_latent(params, width, height, seed, "inpaint")
+                    or max(width, height) > self.cfg("sd_max_size", int)): #Upscale image automatically.
+                if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
+                    #Set common upscaling nodes for model upscaling (eg. Ultrasharp).
+                    self.upscale_with_model(params, width, height, seed, "inpaint") 
+                    #Set a new latent noise mask for the second pass.
+                    setlatentnoisemask_node = { 
+                        "class_type": "SetLatentNoiseMask",
+                        "inputs": {
+                            "samples": [
+                                DEFAULT_NODE_IDS["VAEEncode_upscale"],
+                                0
+                            ],
+                            "mask": [
+                                DEFAULT_NODE_IDS["LoadBase64ImageMask"],
+                                0
+                            ]
+                        }
+                    }
+                else:
+                    self.upscale_latent(params, width, height, seed, "inpaint")
+                    #Set a new latent noise mask for the second pass.
+                    setlatentnoisemask_node = { 
+                        "class_type": "SetLatentNoiseMask",
+                        "inputs": {
+                            "samples": [
+                                DEFAULT_NODE_IDS["LatentUpscale"],
+                                0
+                            ],
+                            "mask": [
+                                DEFAULT_NODE_IDS["LoadBase64ImageMask"],
+                                0
+                            ]
+                        }
+                    }
+                #Register the second mask.
+                params.update({
+                    DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"]: setlatentnoisemask_node 
+                })
+                #Connect second KSampler pass to the mask.
+                params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["latent_image"] = [
+                    DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
+                    0
+                ]
 
         self.get_images(params, cb)
 
     def post_upscale(self, cb, src_img):
-        params = (
-            {
-                "src_img": img_to_b64(src_img),
-                "upscaler_name": self.cfg("upscale_upscaler_name", str),
-                "downscale_first": self.cfg("upscale_downscale_first", bool),
+        params = {}
+        def upscale_latent():
+            imagescale_node = {
+                "class_type": "ImageScaleBy",
+                "inputs": {
+                    "upscale_method": self.cfg("upscale_upscaler_name", str),
+                    "scale_by": self.cfg("upscale_upscale_by", float),
+                    "image": [
+                        DEFAULT_NODE_IDS["LoadBase64Image"],
+                        0
+                    ]
+                }
             }
-            if not self.cfg("just_use_yaml", bool)
-            else {"src_img": img_to_b64(src_img)}
-        )
-        self.post("upscale", params, cb)
-
-    def post_official_api_upscale_postprocess(self, cb, src_imgs: list, width, height):
-        """Uses official API. Intended for finalizing img2img pipeline."""
-        params = dict(
-            resize_mode=1,
-            show_extras_results=False,
-            gfpgan_visibility=0,
-            codeformer_visibility=0,
-            codeformer_weight=0,
-            upscaling_resize=1,
-            upscaling_resize_w=width,
-            upscaling_resize_h=height,
-            upscaling_crop=True,
-            upscaler_1=self.cfg("upscaler_name", str),
-            upscaler_2="None", # Todo: would be nice to support blended upscalers
-            extras_upscaler_2_visibility=0,
-            upscale_first=False,
-            imageList=[]
-        )
-
-        for img in src_imgs:
-            params["imageList"].append({
-                "data": img,
-                "name": "example_image"
+            saveimage_node = {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "filename_prefix": "ComfyUI",
+                    "images": [
+                        DEFAULT_NODE_IDS["ImageScaleBy"],
+                        0
+                    ]
+                }
+            }
+            params.update({
+                DEFAULT_NODE_IDS["ImageScaleBy"]: imagescale_node,
+                DEFAULT_NODE_IDS["SaveImage"]: saveimage_node
             })
 
-        url = get_url(self.cfg, prefix=OFFICIAL_ROUTE_PREFIX)
-        self.post("extra-batch-images", params, cb, base_url=url)
+        def upscale_with_model():
+            upscalemodelloader_node = {
+                "class_type": "UpscaleModelLoader",
+                "inputs": {
+                    "model_name": self.cfg("upscale_upscaler_name", str)
+                }
+            }
+            imageupscalewithmodel_node = {
+                "class_type": "ImageUpscaleWithModel",
+                "inputs": {
+                    "upscale_model": [
+                        DEFAULT_NODE_IDS["UpscaleModelLoader"],
+                        0
+                    ],
+                    "image": [
+                        DEFAULT_NODE_IDS["LoadBase64Image"],
+                        0
+                    ]
+                }
+            }
+            imagescale_node = {
+                "class_type": "ImageScale",
+                "inputs": {
+                    "upscale_method": "bilinear",
+                    "width": src_img.width() * self.cfg("upscale_upscale_by", float),
+                    "height": src_img.height() * self.cfg("upscale_upscale_by", float),
+                    "crop": "disabled",
+                    "image": [
+                        DEFAULT_NODE_IDS["ImageUpscaleWithModel"],
+                        0
+                    ]
+                }
+            }
+            saveimage_node = {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "filename_prefix": "ComfyUI",
+                    "images": [
+                        DEFAULT_NODE_IDS["ImageScale"],
+                        0
+                    ]
+                }
+            }
+            params.update({
+                DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
+                DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
+                DEFAULT_NODE_IDS["ImageScale"]: imagescale_node,
+                DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
+            })
+        
+        loadimage_node = {
+            "class_type": "LoadBase64Image",
+            "inputs" : {
+                "image": img_to_b64(src_img)
+            }
+        }
+            
+        params = {
+            DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node
+        }
+
+        if self.cfg("upscale_upscaler_name", str) in self.cfg("upscaler_model_list", "QStringList"):
+            upscale_with_model()
+        else:
+            upscale_latent()
+        
+        self.get_images(params, cb)
 
     def post_controlnet_preview(self, cb, src_img, width, height):
         def get_pixel_perfect_preprocessor_resolution():

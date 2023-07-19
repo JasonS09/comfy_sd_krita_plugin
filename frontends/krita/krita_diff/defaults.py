@@ -59,17 +59,24 @@ DEFAULT_NODE_IDS = {
     "VAELoader": "11",
 
     #Upscale
-    "LatentUpscale": "12",
-    "KSampler_upscale": "13",
+    "UpscaleModelLoader": "12",
+    "ImageUpscaleWithModel": "13",
+    "LatentUpscale": "14",
+    "KSampler_upscale": "15",
+    "VAEDecode_upscale": "16",
+    "ImageScale": "17",
+    "ImageScaleBy": "18",
+    "VAEEncode_upscale": "19",
+    "SetLatentNoiseMask_upscale": "20",
 
     #Img2img
-    "LoadBase64Image": "14",
-    "VAEEncode": "15",
+    "LoadBase64Image": "21",
+    "VAEEncode": "22",
 
     #Inpaint
-    "LoadBase64ImageMask": "16",
-    "VAEEncodeForInpaint": "17",
-    "SetLatentNoiseMask": "18"
+    "LoadBase64ImageMask": "23",
+    "VAEEncodeForInpaint": "24",
+    "SetLatentNoiseMask": "25"
 }
 
 # controlnet
@@ -228,6 +235,8 @@ class Defaults:
     sd_max_size: int = 768
     sd_tiling: bool = False
     upscaler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    upscaler_methods_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    upscaler_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     upscaler_name: str = "None"
     face_restorer_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     face_restorer_model: str = "None"
@@ -287,7 +296,7 @@ class Defaults:
     inpaint_mask_weight: float = 1.0
 
     upscale_upscaler_name: str = "None"
-    upscale_downscale_first: bool = False
+    upscale_upscale_by: float = 1.0
 
     controlnet_unit: str = "0"
     controlnet_unit_list: List[str] = field(default_factory=lambda: list(str(i) for i in range(10)))

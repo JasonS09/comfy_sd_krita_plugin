@@ -51,7 +51,10 @@ class SDCommonPage(QWidget):
 
         # global upscaler
         self.upscaler_layout = QComboBoxLayout(
-            script.cfg, "upscaler_list", "upscaler_name", label="Upscaler:"
+            script.cfg, 
+            ["None"] + script.cfg("upscaler_methods_list", "QStringList") + script.cfg("upscaler_model_list", "QStringList"), 
+            "upscaler_name", 
+            label="Upscaler:"
         )
 
         self.sddebz = QCheckBox(
