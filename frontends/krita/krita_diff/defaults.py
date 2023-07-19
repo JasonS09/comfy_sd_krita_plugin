@@ -76,7 +76,10 @@ DEFAULT_NODE_IDS = {
     #Inpaint
     "LoadBase64ImageMask": "23",
     "VAEEncodeForInpaint": "24",
-    "SetLatentNoiseMask": "25"
+    "SetLatentNoiseMask": "25",
+
+    #Lora
+    "LoraLoader": "26"
 }
 
 # controlnet

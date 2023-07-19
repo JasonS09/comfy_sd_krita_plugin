@@ -10,10 +10,10 @@ from urllib.request import Request, urlopen
 
 from krita import (
     Qt,
-    QImage, 
-    QObject, 
-    QThread, 
-    pyqtSignal, 
+    QImage,
+    QObject,
+    QThread,
+    pyqtSignal,
     QTimer
 )
 
@@ -33,8 +33,8 @@ from .defaults import (
     DEFAULT_NODE_IDS
 )
 from .utils import (
-    bytewise_xor, 
-    img_to_b64, 
+    bytewise_xor,
+    img_to_b64,
     calculate_resized_image_dimensions
 )
 
@@ -53,8 +53,10 @@ def get_url(cfg: Config, route: str = ..., prefix: str = ROUTE_PREFIX):
         url = urljoin(url, route)
     # print("url:", url)
     return url
-    
+
 # krita doesn't reexport QtNetwork
+
+
 class AsyncRequest(QObject):
     timeout = None
     finished = pyqtSignal()
@@ -103,7 +105,8 @@ class AsyncRequest(QObject):
         else:
             self.method = method
         if method == "POST":
-            self.data = None if data is None else json.dumps(data).encode("utf-8")
+            self.data = None if data is None else json.dumps(
+                data).encode("utf-8")
 
             if self.data is not None and self.key is not None:
                 # print(f"Encrypting with ${self.key}:\n{self.data}")
@@ -153,6 +156,7 @@ class AsyncRequest(QObject):
         else:
             return req, lambda: req.run()
 
+
 class Client(QObject):
     status = pyqtSignal(str)
     config_updated = pyqtSignal()
@@ -190,7 +194,8 @@ class Client(QObject):
         except ValueError as e:
             self.status.emit(f"{STATE_URLERROR}: Invalid backend URL")
         except ConnectionError as e:
-            self.status.emit(f"{STATE_URLERROR}: connection error during request")
+            self.status.emit(
+                f"{STATE_URLERROR}: connection error during request")
         except Exception as e:
             # self.status.emit(f"{STATE_URLERROR}: Unexpected Error")
             # self.status.emit(str(e))
@@ -214,9 +219,10 @@ class Client(QObject):
             except KeyError:
                 return {
                     "info": {},
-                    "outputs": images[0] #Assuming it's the result of a simple upscale.
+                    # Assuming it's the result of a simple upscale.
+                    "outputs": images[0]
                 }
-        
+
         def on_history_received(history_res):
             images_output = []
 
@@ -235,11 +241,13 @@ class Client(QObject):
                 node_output = history['outputs'][node_id]
                 if 'images' in node_output:
                     for image in node_output['images']:
-                        i+=1
-                        self.get_image(image['filename'], image['subfolder'], image['type'], on_image_received)
+                        i += 1
+                        self.get_image(
+                            image['filename'], image['subfolder'], image['type'], on_image_received)
                         names.append(image["filename"])
-                            
-            def check_if_populated(): #Check if all images are in the list before sending the response to script.
+
+            # Check if all images are in the list before sending the response to script.
+            def check_if_populated():
                 if len(images_output) == i:
                     timer.stop()
                     response = craft_response(images_output, history, names)
@@ -249,9 +257,10 @@ class Client(QObject):
                 timer = QTimer()
                 timer.timeout.connect(check_if_populated)
                 timer.start(0.05)
-                    
+
         if status == STATE_DONE:
-            self.status.disconnect(self.conn) #Prevent undesired executions of this function.
+            # Prevent undesired executions of this function.
+            self.status.disconnect(self.conn)
             self.get_history(prompt_id, on_history_received)
 
     def queue_prompt(self, prompt, cb=None):
@@ -259,40 +268,42 @@ class Client(QObject):
         self.post("prompt", p, cb, is_long=False)
 
     def get_image(self, filename, subfolder, folder_type, cb=None):
-        data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+        data = {"filename": filename,
+                "subfolder": subfolder, "type": folder_type}
         self.get("view", cb, data=data, is_long=False)
-        
+
     def get_history(self, prompt_id, cb=None):
         self.get(f"history/{prompt_id}", cb, is_long=False)
 
     def check_progress(self, cb):
         def on_progress_checked(res):
             if not self.interrupted and len(res["queue_running"]) == 0 \
-                  and self.is_connected:
+                    and self.is_connected:
                 self.status.emit(STATE_DONE)
-            
+
             cb(res)
 
         self.get("queue", on_progress_checked)
-    
+
     def get_images(self, prompt, cb):
         def on_prompt_received(prompt_res):
             assert prompt_res is not None, "Backend Error, check terminal"
             self.prompt_sent.emit()
             prompt_id = prompt_res['prompt_id']
-            self.conn = lambda s: self.on_images_received(s, prompt_id) 
+            self.conn = lambda s: self.on_images_received(s, prompt_id)
             self.status.connect(self.conn)
-        
+
         self.queue_prompt(prompt, on_prompt_received)
         self.images_received.connect(cb)
 
     def post(
-        self, route, body, cb, base_url=..., is_long=True, ignore_no_connection=False, method = "POST", headers = {}
+        self, route, body, cb, base_url=..., is_long=True, ignore_no_connection=False, method="POST", headers={}
     ):
         if not ignore_no_connection and not self.is_connected:
             self.status.emit(ERR_NO_CONNECTION)
             return
-        url = get_url(self.cfg, route) if base_url is ... else urljoin(base_url, route)
+        url = get_url(self.cfg, route) if base_url is ... else urljoin(
+            base_url, route)
         if not url:
             self.status.emit(ERR_BAD_URL)
             return
@@ -301,8 +312,8 @@ class Client(QObject):
             body,
             LONG_TIMEOUT if is_long else SHORT_TIMEOUT,
             key=self.cfg("encryption_key"),
-            method = method,
-            headers = headers
+            method=method,
+            headers=headers
         )
 
         if is_long:
@@ -331,7 +342,7 @@ class Client(QObject):
             ignore_no_connection=ignore_no_connection,
             method="GET"
         )
-    
+
     def common_params(self, width, height, controlnet_src_imgs):
         """Parameters used by most modes."""
         checkpointloadersimple_node = {
@@ -373,7 +384,7 @@ class Client(QObject):
                 ]
             }
         }
-        prompt = {
+        params = {
             DEFAULT_NODE_IDS["CheckpointLoaderSimple"]: checkpointloadersimple_node,
             DEFAULT_NODE_IDS["VAEDecode"]: vaedecode_node,
             DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
@@ -381,26 +392,26 @@ class Client(QObject):
         }
 
         def loadVAE():
-            nonlocal prompt
+            nonlocal params
             vaeloader_node = {
                 "class_type": "VAELoader",
                 "inputs": {
                     "vae_name": self.cfg("sd_vae", str)
                 }
             }
-            prompt.update({
+            params.update({
                 DEFAULT_NODE_IDS["VAELoader"]: vaeloader_node
             })
-            prompt[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["vae"] = [
+            params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["vae"] = [
                 DEFAULT_NODE_IDS["VAELoader"],
                 0
             ]
 
         if self.cfg("sd_vae", str) != "Normal"  \
-            and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
+                and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
             loadVAE()
 
-        return prompt
+        return params
 
         if controlnet_src_imgs:
             controlnet_units_param = list()
@@ -408,35 +419,111 @@ class Client(QObject):
             for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
                 if self.cfg(f"controlnet{i}_enable", bool):
                     controlnet_units_param.append(
-                        self.controlnet_unit_params(img_to_b64(controlnet_src_imgs[str(i)]), i, width, height)
+                        self.controlnet_unit_params(img_to_b64(
+                            controlnet_src_imgs[str(i)]), i, width, height)
                     )
                 else:
                     controlnet_units_param.append({"enabled": False})
-                
+
             params["alwayson_scripts"].update({
                 "controlnet": {
                     "args": controlnet_units_param
                 }
             })
-        
+
         return params
-    
+
+    def loadLoRAs(self, params, prefix):
+        '''Call only when base prompt structure is already stored in params,
+        otherwise will probably not work'''
+
+        # Initialize a counter to keep track of the number of nodes added
+        lora_count = 0
+
+        # Use a regular expression to find all the elements between < and > in the string
+        import re
+        pattern = r"<lora:(\w+):([\d.]+)>"
+        matches = re.findall(pattern, self.cfg(f"{prefix}_prompt", str))
+
+        # Loop through the matches and create a node for each element
+        for match in matches:
+            # Extract the lora name and the strength number from the match
+            lora_name = match[0]
+            strength_number = float(match[1])
+
+            # Create a node dictionary with the class type, inputs, and outputs
+            node = {
+                "class_type": "LoraLoader",
+                "inputs": {
+                    "lora_name": f"{lora_name}.safetensors",
+                    "strength_model": strength_number,
+                    "strength_clip": strength_number,
+                    # If this is the first node, use the default model and clip parameters
+                    # Otherwise, use the previous node id as the model and clip parameters
+                    "model": [
+                        DEFAULT_NODE_IDS[
+                            "CheckpointLoaderSimple"] if lora_count == 0 else f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                        0
+                    ],
+                    "clip": [
+                        DEFAULT_NODE_IDS[
+                            "ClipSetLastLayer"] if lora_count == 0 else f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                        0 if lora_count == 0 else 1
+                    ]
+                }
+            }
+
+            # Generate a node id by adding the node count to the default node id
+            node_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count+1}"
+
+            # Add the node to the params dictionary with the node id as the key
+            params.update({node_id: node})
+
+            # Increment the node count by one
+            lora_count += 1
+
+        if lora_count > 0:
+            #Connect KSampler to last lora node.
+            params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
+                f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                0
+            ]
+
+            #Connect KSampler for upscale (second pass) to last lora node if found.
+            if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
+                params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [
+                    f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                    0
+                ]
+            
+            #Connect positive prompt to lora clip.
+            params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["clip"] = [
+                f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                1
+            ]
+            
+            #Connect negative prompt to lora clip.
+            params[DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["clip"] = [
+                f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                1
+            ]
+
     def upscale_latent(self, params, width, height, seed, cfg_prefix):
         '''Call only when base prompt structure is already stored in params,
         otherwise will probably not work'''
         latentupscale_node = {
             "class_type": "LatentUpscale",
-            "inputs":{
+            "inputs": {
                 "upscale_method": self.cfg("upscaler_name", str),
                 "width": width,
                 "height": height,
-                    "crop": "disabled",
-                    "samples": [
+                "crop": "disabled",
+                "samples": [
                         DEFAULT_NODE_IDS["KSampler"],
                         0
-                    ]
-                }
+                ]
             }
+        }
         denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
         ksampler_upscale_node = {
             "class_type": "KSampler",
@@ -473,7 +560,8 @@ class Client(QObject):
             DEFAULT_NODE_IDS["KSampler_upscale"],
             0
         ]
-        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("inpaint_steps", int)/2)
+        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
+            self.cfg("inpaint_steps", int)/2)
 
     def upscale_with_model(self, params, width, height, seed, cfg_prefix):
         '''Call only when base prompt structure is already stored in params,
@@ -487,7 +575,7 @@ class Client(QObject):
                     0
                 ],
                 "vae": [
-                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],   
+                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                     0 if vae_id in params else 2
                 ]
             }
@@ -532,7 +620,7 @@ class Client(QObject):
                     0
                 ],
                 "vae": [
-                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],   
+                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                     0 if vae_id in params else 2
                 ]
             }
@@ -577,8 +665,9 @@ class Client(QObject):
             DEFAULT_NODE_IDS["KSampler_upscale"],
             0
         ]
-        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("inpaint_steps", int)/2)
-    
+        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
+            self.cfg("inpaint_steps", int)/2)
+
     def controlnet_unit_params(self, image: str, unit: int, width: int, height: int):
         preprocessor_resolution = min(width, height) if self.cfg(f"controlnet{unit}_pixel_perfect", bool)  \
             else self.cfg(f"controlnet{unit}_preprocessor_resolution", int)
@@ -613,26 +702,27 @@ class Client(QObject):
                 )
                 print("Invalid Response:\n", obj)
                 return
-            
-        def on_get_upscalers(obj): #Can only get latent upscalers for now.
+
+        def on_get_upscalers(obj):  # Can only get latent upscalers for now.
             try:
                 check_response(obj)
             except:
                 return
-            
+
             if "LatentUpscale" in obj:
                 node = obj["LatentUpscale"]["input"]["required"]
-                self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
+                self.cfg.set("upscaler_methods_list",
+                             node["upscale_method"][0])
             if "UpscaleModelLoader" in obj:
                 node = obj["UpscaleModelLoader"]["input"]["required"]
                 self.cfg.set("upscaler_model_list", node["model_name"][0])
-        
+
         def on_get_sampler_data(obj):
             try:
                 check_response(obj)
             except:
                 return
-            
+
             node = obj["KSampler"]["input"]["required"]
             self.cfg.set("txt2img_sampler_list", node["sampler_name"][0])
             self.cfg.set("img2img_sampler_list", node["sampler_name"][0])
@@ -646,7 +736,7 @@ class Client(QObject):
                 check_response(obj)
             except:
                 return
-            
+
             node = obj["CheckpointLoaderSimple"]["input"]["required"]
             self.cfg.set("sd_model_list", node["ckpt_name"][0])
 
@@ -655,15 +745,20 @@ class Client(QObject):
                 check_response(obj)
             except:
                 return
-            
+
             node = obj["VAELoader"]["input"]["required"]
             self.cfg.set("sd_vae_list", ["None"] + node["vae_name"][0])
 
-        self.get(f"/object_info/LatentUpscale", on_get_upscalers, ignore_no_connection=True)
-        self.get(f"/object_info/KSampler", on_get_sampler_data, ignore_no_connection=True)
-        self.get(f"/object_info/CheckpointLoaderSimple", on_get_models, ignore_no_connection=True)
-        self.get(f"/object_info/UpscaleModelLoader", on_get_upscalers, ignore_no_connection=True)
-        self.get(f"/object_info/VAELoader", on_get_VAE, ignore_no_connection=True)
+        self.get(f"/object_info/LatentUpscale",
+                 on_get_upscalers, ignore_no_connection=True)
+        self.get(f"/object_info/KSampler", on_get_sampler_data,
+                 ignore_no_connection=True)
+        self.get(f"/object_info/CheckpointLoaderSimple",
+                 on_get_models, ignore_no_connection=True)
+        self.get(f"/object_info/UpscaleModelLoader",
+                 on_get_upscalers, ignore_no_connection=True)
+        self.get(f"/object_info/VAELoader",
+                 on_get_VAE, ignore_no_connection=True)
 
     def get_controlnet_config(self):
         '''Get models and modules for ControlNet'''
@@ -676,7 +771,7 @@ class Client(QObject):
                 )
                 print("Invalid Response:\n", obj)
                 return
-            
+
         def set_model_list(obj):
             key = "model_list"
             check_response(obj, key)
@@ -687,7 +782,7 @@ class Client(QObject):
             check_response(obj, key)
             self.cfg.set("controlnet_preprocessor_list", obj[key])
 
-        #Get controlnet API url
+        # Get controlnet API url
         url = get_url(self.cfg, prefix=CONTROLNET_ROUTE_PREFIX)
         self.get("model_list", set_model_list, base_url=url)
         self.get("module_list", set_preprocessor_list, base_url=url)
@@ -696,20 +791,24 @@ class Client(QObject):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
         if not self.cfg("just_use_yaml", bool):
             seed = (
-                int(self.cfg("txt2img_seed", str))  # Qt casts int as 32-bit int
+                # Qt casts int as 32-bit int
+                int(self.cfg("txt2img_seed", str))
                 if not self.cfg("txt2img_seed", str).strip() == ""
-                else randint(0, 18446744073709552000) 
+                else randint(0, 18446744073709552000)
             )
 
             resized_width, resized_height = width, height
-            disable_base_and_max_size = self.cfg("disable_sddebz_highres", bool)
+            disable_base_and_max_size = self.cfg(
+                "disable_sddebz_highres", bool)
 
             if not disable_base_and_max_size:
                 resized_width, resized_height = calculate_resized_image_dimensions(
-                    self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                    self.cfg("sd_base_size", int), self.cfg(
+                        "sd_max_size", int), width, height
                 )
-           
-            params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
+
+            params = self.common_params(
+                resized_width, resized_height, controlnet_src_imgs)
             ksampler_node = {
                 "class_type": "KSampler",
                 "inputs": {
@@ -775,36 +874,42 @@ class Client(QObject):
 
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\
-                (min(width, height) > self.cfg("sd_base_size", int) \
+                (min(width, height) > self.cfg("sd_base_size", int)
                     or max(width, height) > self.cfg("sd_max_size", int)):
                 upscaler_name = self.cfg("upscaler_name", str)
                 if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
-                    self.upscale_with_model(params, width, height, seed, "txt2img")
+                    self.upscale_with_model(
+                        params, width, height, seed, "txt2img")
                 else:
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
-            self.get_images(params, cb)
+            self.loadLoRAs(params, "txt2img")
+        self.get_images(params, cb)
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
         if not self.cfg("just_use_yaml", bool):
             seed = (
-                int(self.cfg("img2img_seed", str))  # Qt casts int as 32-bit int
+                # Qt casts int as 32-bit int
+                int(self.cfg("img2img_seed", str))
                 if not self.cfg("img2img_seed", str).strip() == ""
-                else randint(0, 18446744073709552000) 
+                else randint(0, 18446744073709552000)
             )
             resized_width, resized_height = width, height
-            disable_base_and_max_size = self.cfg("disable_sddebz_highres", bool)
+            disable_base_and_max_size = self.cfg(
+                "disable_sddebz_highres", bool)
 
             if not disable_base_and_max_size:
                 resized_width, resized_height = calculate_resized_image_dimensions(
-                    self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                    self.cfg("sd_base_size", int), self.cfg(
+                        "sd_max_size", int), width, height
                 )
 
-            params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
+            params = self.common_params(
+                resized_width, resized_height, controlnet_src_imgs)
             loadimage_node = {
                 "class_type": "LoadBase64Image",
-                "inputs" : {
+                "inputs": {
                     "image": img_to_b64(src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio))
                 }
             }
@@ -880,13 +985,15 @@ class Client(QObject):
 
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\
-                (min(width, height) > self.cfg("sd_base_size", int) \
+                (min(width, height) > self.cfg("sd_base_size", int)
                     or max(width, height) > self.cfg("sd_max_size", int)):
                 if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
-                    self.upscale_with_model(params, width, height, seed, "img2img")
+                    self.upscale_with_model(
+                        params, width, height, seed, "img2img")
                 else:
                     self.upscale_latent(params, width, height, seed, "img2img")
-
+            
+            self.loadLoRAs(params, "img2img")
         self.get_images(params, cb)
 
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
@@ -895,28 +1002,32 @@ class Client(QObject):
         preserve = self.cfg("inpaint_fill", str) == "preserve"
         if not self.cfg("just_use_yaml", bool):
             seed = (
-                int(self.cfg("inpaint_seed", str))  # Qt casts int as 32-bit int
+                # Qt casts int as 32-bit int
+                int(self.cfg("inpaint_seed", str))
                 if not self.cfg("inpaint_seed", str).strip() == ""
                 else randint(0, 18446744073709552000)
             )
             resized_width, resized_height = width, height
-            disable_base_and_max_size = self.cfg("disable_sddebz_highres", bool)
+            disable_base_and_max_size = self.cfg(
+                "disable_sddebz_highres", bool)
 
             if not disable_base_and_max_size:
                 resized_width, resized_height = calculate_resized_image_dimensions(
-                    self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                    self.cfg("sd_base_size", int), self.cfg(
+                        "sd_max_size", int), width, height
                 )
 
-            params = self.common_params(resized_width, resized_height, controlnet_src_imgs)
+            params = self.common_params(
+                resized_width, resized_height, controlnet_src_imgs)
             loadimage_node = {
                 "class_type": "LoadBase64Image",
-                "inputs" : {
+                "inputs": {
                     "image": img_to_b64(src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio))
                 }
             }
             loadmask_node = {
                 "class_type": "LoadBase64ImageMask",
-                "inputs" : {
+                "inputs": {
                     "image": img_to_b64(mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)),
                     "channel": "alpha"
                 }
@@ -1030,13 +1141,14 @@ class Client(QObject):
 
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\
-                (min(width, height) > self.cfg("sd_base_size", int) \
-                    or max(width, height) > self.cfg("sd_max_size", int)): #Upscale image automatically.
+                (min(width, height) > self.cfg("sd_base_size", int)
+                    or max(width, height) > self.cfg("sd_max_size", int)):  # Upscale image automatically.
                 if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
-                    #Set common upscaling nodes for model upscaling (eg. Ultrasharp).
-                    self.upscale_with_model(params, width, height, seed, "inpaint") 
-                    #Set a new latent noise mask for the second pass.
-                    setlatentnoisemask_node = { 
+                    # Set common upscaling nodes for model upscaling (eg. Ultrasharp).
+                    self.upscale_with_model(
+                        params, width, height, seed, "inpaint")
+                    # Set a new latent noise mask for the second pass.
+                    setlatentnoisemask_node = {
                         "class_type": "SetLatentNoiseMask",
                         "inputs": {
                             "samples": [
@@ -1051,8 +1163,8 @@ class Client(QObject):
                     }
                 else:
                     self.upscale_latent(params, width, height, seed, "inpaint")
-                    #Set a new latent noise mask for the second pass.
-                    setlatentnoisemask_node = { 
+                    # Set a new latent noise mask for the second pass.
+                    setlatentnoisemask_node = {
                         "class_type": "SetLatentNoiseMask",
                         "inputs": {
                             "samples": [
@@ -1065,20 +1177,21 @@ class Client(QObject):
                             ]
                         }
                     }
-                #Register the second mask.
+                # Register the second mask.
                 params.update({
-                    DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"]: setlatentnoisemask_node 
+                    DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"]: setlatentnoisemask_node
                 })
-                #Connect second KSampler pass to the mask.
+                # Connect second KSampler pass to the mask.
                 params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["latent_image"] = [
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
                     0
                 ]
-
+            self.loadLoRAs(params, "inpaint")
         self.get_images(params, cb)
 
     def post_upscale(self, cb, src_img):
         params = {}
+
         def upscale_latent():
             imagescale_node = {
                 "class_type": "ImageScaleBy",
@@ -1155,14 +1268,14 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ImageScale"]: imagescale_node,
                 DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
             })
-        
+
         loadimage_node = {
             "class_type": "LoadBase64Image",
-            "inputs" : {
+            "inputs": {
                 "image": img_to_b64(src_img)
             }
         }
-            
+
         params = {
             DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node
         }
@@ -1171,7 +1284,7 @@ class Client(QObject):
             upscale_with_model()
         else:
             upscale_latent()
-        
+
         self.get_images(params, cb)
 
     def post_controlnet_preview(self, cb, src_img, width, height):
@@ -1180,14 +1293,15 @@ class Client(QObject):
                 return min(width, height)
 
             resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg("sd_max_size", int), width, height
+                self.cfg("sd_base_size", int), self.cfg(
+                    "sd_max_size", int), width, height
             )
             return min(resized_width, resized_height)
-        
-        unit = self.cfg("controlnet_unit", str)  
+
+        unit = self.cfg("controlnet_unit", str)
         preprocessor_resolution = get_pixel_perfect_preprocessor_resolution() if self.cfg(f"controlnet{unit}_pixel_perfect", bool)  \
             else self.cfg(f"controlnet{unit}_preprocessor_resolution", int)
-        
+
         params = (
             {
                 "controlnet_module": self.cfg(f"controlnet{unit}_preprocessor", str),
@@ -1195,7 +1309,7 @@ class Client(QObject):
                 "controlnet_processor_res": preprocessor_resolution,
                 "controlnet_threshold_a": self.cfg(f"controlnet{unit}_threshold_a", float),
                 "controlnet_threshold_b": self.cfg(f"controlnet{unit}_threshold_b", float)
-            } #Not sure if it's necessary to make the just_use_yaml validation here
+            }  # Not sure if it's necessary to make the just_use_yaml validation here
         )
         url = get_url(self.cfg, prefix=CONTROLNET_ROUTE_PREFIX)
         self.post("detect", params, cb, url)
