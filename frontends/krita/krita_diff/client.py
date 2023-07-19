@@ -415,6 +415,59 @@ class Client(QObject):
         
         return params
     
+    def upscale_latent(self, params, width, height, seed, cfg_prefix):
+        '''Call only when base prompt structure is already stored in params,
+        otherwise will probably not work'''
+        latentupscale_node = {
+            "class_type": "LatentUpscale",
+            "inputs":{
+                "upscale_method": self.cfg("upscaler_name", str),
+                "width": width,
+                "height": height,
+                    "crop": "disabled",
+                    "samples": [
+                        DEFAULT_NODE_IDS["KSampler"],
+                        0
+                    ]
+                }
+            }
+        ksampler_upscale_node = {
+            "class_type": "KSampler",
+            "inputs": {
+                "cfg": 8,
+                "denoise": self.cfg(f"{cfg_prefix}_denoising_strength", float),
+                "model": [
+                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                    0
+                ],
+                "latent_image": [
+                    DEFAULT_NODE_IDS["LatentUpscale"],
+                    0
+                ],
+                "negative": [
+                    DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                    0
+                ],
+                "positive": [
+                    DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                    0
+                ],
+                "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
+                "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
+                "seed": seed,
+                "steps": ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
+            }
+        }
+        params.update({
+            DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
+            DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+        })
+        params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
+            DEFAULT_NODE_IDS["KSampler_upscale"],
+            0
+        ]
+        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("inpaint_steps", int)/2)
+    
     def controlnet_unit_params(self, image: str, unit: int, width: int, height: int):
         preprocessor_resolution = min(width, height) if self.cfg(f"controlnet{unit}_pixel_perfect", bool)  \
             else self.cfg(f"controlnet{unit}_preprocessor_resolution", int)
@@ -604,62 +657,10 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            def upscale_latent():
-                nonlocal params 
-                latentupscale_node = {
-                    "class_type": "LatentUpscale",
-                    "inputs":{
-                        "upscale_method": self.cfg("upscaler_name", str),
-                        "width": width,
-                        "height": height,
-                        "crop": "disabled",
-                        "samples": [
-                            DEFAULT_NODE_IDS["KSampler"],
-                            0
-                        ]
-                    }
-                }
-                ksampler_upscale_node = {
-                    "class_type": "KSampler",
-                    "inputs": {
-                        "cfg": 8,
-                        "denoise": self.cfg("txt2img_denoising_strength", float),
-                        "model": [
-                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                            0
-                        ],
-                        "latent_image": [
-                            DEFAULT_NODE_IDS["LatentUpscale"],
-                            0
-                        ],
-                        "negative": [
-                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                            0
-                        ],
-                        "positive": [
-                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                            0
-                        ],
-                        "sampler_name": self.cfg("txt2img_sampler", str),
-                        "scheduler": self.cfg("txt2img_scheduler", str),
-                        "seed": seed,
-                        "steps": ceil(self.cfg("txt2img_steps", int)/2)
-                    }
-                }
-                params.update({
-                    DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
-                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
-                })
-                params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
-                    DEFAULT_NODE_IDS["KSampler_upscale"],
-                    0
-                ]
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("txt2img_steps", int)/2)
-
             if not disable_base_and_max_size and \
                 (min(width, height) > self.cfg("sd_base_size", int) \
                     or max(width, height) > self.cfg("sd_max_size", int)):
-                upscale_latent()
+                self.upscale_latent(params, width, height, seed, "txt2img")
 
             self.get_images(params, cb)
 
@@ -811,7 +812,7 @@ class Client(QObject):
             if not disable_base_and_max_size and \
                 (min(width, height) > self.cfg("sd_base_size", int) \
                     or max(width, height) > self.cfg("sd_max_size", int)):
-                upscale_latent()
+                self.upscale_latent(params, width, height, seed, "img2img")
 
         self.get_images(params, cb)
 
@@ -954,62 +955,10 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            def upscale_latent():
-                nonlocal params 
-                latentupscale_node = {
-                    "class_type": "LatentUpscale",
-                    "inputs":{
-                        "upscale_method": self.cfg("upscaler_name", str),
-                        "width": width,
-                        "height": height,
-                        "crop": "disabled",
-                        "samples": [
-                            DEFAULT_NODE_IDS["KSampler"],
-                            0
-                        ]
-                    }
-                }
-                ksampler_upscale_node = {
-                    "class_type": "KSampler",
-                    "inputs": {
-                        "cfg": 8,
-                        "denoise": self.cfg("inpaint_denoising_strength", float),
-                        "model": [
-                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                            0
-                        ],
-                        "latent_image": [
-                            DEFAULT_NODE_IDS["LatentUpscale"],
-                            0
-                        ],
-                        "negative": [
-                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                            0
-                        ],
-                        "positive": [
-                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                            0
-                        ],
-                        "sampler_name": self.cfg("inpaint_sampler", str),
-                        "scheduler": self.cfg("inpaint_scheduler", str),
-                        "seed": seed,
-                        "steps": ceil(self.cfg("inpaint_steps", int)/2)
-                    }
-                }
-                params.update({
-                    DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
-                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
-                })
-                params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
-                    DEFAULT_NODE_IDS["KSampler_upscale"],
-                    0
-                ]
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(self.cfg("inpaint_steps", int)/2)
-
             if not disable_base_and_max_size and \
                 (min(width, height) > self.cfg("sd_base_size", int) \
                     or max(width, height) > self.cfg("sd_max_size", int)):
-                upscale_latent()
+                self.upscale_latent(params, width, height, seed, "inpaint")
 
         self.get_images(params, cb)
 

@@ -309,6 +309,8 @@ class Script(QObject):
             self.doc.refreshProjection()
             mask_trigger(layers)
 
+            self.client.images_received.disconnect(cb)
+
         sel_image = self.get_selection_image()
         self.client.post_txt2img(
             cb, self.width, self.height, 
@@ -317,7 +319,7 @@ class Script(QObject):
 
     def apply_img2img(self, is_inpaint):
         mask_trigger = self.transparency_mask_inserter()
-        mask_image, transparency_mask = self.get_mask_image() if is_inpaint else None
+        mask_image, transparency_mask = self.get_mask_image() if is_inpaint else (None, None)
         glayer = self.doc.createGroupLayer("Unnamed Group")
         self.doc.rootNode().addChildNode(glayer, None)
         insert = self.img_inserter(
@@ -342,7 +344,6 @@ class Script(QObject):
 
         def cb(response):
             assert response is not None, "Backend Error, check terminal"
-
             outputs = response["outputs"]
             layer_name_prefix = "inpaint" if is_inpaint else "img2img"
             glayer_name, layer_names = get_desc_from_resp(response, layer_name_prefix)
@@ -360,6 +361,8 @@ class Script(QObject):
             # dont need transparency mask for inpaint mode
             if not is_inpaint:
                 mask_trigger(layers)
+
+            self.client.images_received.disconnect(cb)
 
         if is_inpaint:
             self.client.post_inpaint(
