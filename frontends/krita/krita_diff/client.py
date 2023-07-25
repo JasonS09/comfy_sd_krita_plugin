@@ -22,7 +22,6 @@ from .defaults import (
     ERR_BAD_URL,
     ERR_NO_CONNECTION,
     LONG_TIMEOUT,
-    OFFICIAL_ROUTE_PREFIX,
     ROUTE_PREFIX,
     CONTROLNET_ROUTE_PREFIX,
     SHORT_TIMEOUT,
@@ -343,7 +342,7 @@ class Client(QObject):
             method="GET"
         )
 
-    def common_params(self, width, height, controlnet_src_imgs):
+    def common_params(self):
         """Parameters used by most modes."""
         checkpointloadersimple_node = {
             "class_type": "CheckpointLoaderSimple",
@@ -410,26 +409,6 @@ class Client(QObject):
         if self.cfg("sd_vae", str) != "Normal"  \
                 and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
             loadVAE()
-
-        return params
-
-        if controlnet_src_imgs:
-            controlnet_units_param = list()
-
-            for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
-                if self.cfg(f"controlnet{i}_enable", bool):
-                    controlnet_units_param.append(
-                        self.controlnet_unit_params(img_to_b64(
-                            controlnet_src_imgs[str(i)]), i, width, height)
-                    )
-                else:
-                    controlnet_units_param.append({"enabled": False})
-
-            params["alwayson_scripts"].update({
-                "controlnet": {
-                    "args": controlnet_units_param
-                }
-            })
 
         return params
 
@@ -667,27 +646,113 @@ class Client(QObject):
         ]
         params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
             self.cfg("inpaint_steps", int)/2)
+        
+    def apply_controlnet(self, params, controlnet_src_imgs):
+        if controlnet_src_imgs:
+            controlnet_units_param = []
+            prev = ""
 
-    def controlnet_unit_params(self, image: str, unit: int, width: int, height: int):
-        preprocessor_resolution = min(width, height) if self.cfg(f"controlnet{unit}_pixel_perfect", bool)  \
-            else self.cfg(f"controlnet{unit}_preprocessor_resolution", int)
-        params = dict(
-            input_image=image,
-            module=self.cfg(f"controlnet{unit}_preprocessor", str),
-            model=self.cfg(f"controlnet{unit}_model", str),
-            weight=self.cfg(f"controlnet{unit}_weight", float),
-            lowvram=self.cfg(f"controlnet{unit}_low_vram", bool),
-            processor_res=preprocessor_resolution,
-            threshold_a=self.cfg(f"controlnet{unit}_threshold_a", float),
-            threshold_b=self.cfg(f"controlnet{unit}_threshold_b", float),
-            guidance_start=self.cfg(f"controlnet{unit}_guidance_start", float),
-            guidance_end=self.cfg(f"controlnet{unit}_guidance_end", float),
-            control_mode=self.cfg(f"controlnet{unit}_control_mode", str)
-        )
-        return params
+            for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
+                if self.cfg(f"controlnet{i}_enable", bool):
+                    prev = self.controlnet_unit_params(params, img_to_b64(
+                        controlnet_src_imgs[str(i)]), i, prev)
+                else:
+                    controlnet_units_param.append({"enabled": False})
+            
+            if prev != "":
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["positive"] = [prev, 0]
+
+    def controlnet_unit_params(self, params, image: str, unit: int, prev = ""):
+        '''Call only when base prompt structure is already stored in params,
+        otherwise will probably not work'''
+        #Image loading
+        imageloader_prefix = DEFAULT_NODE_IDS["ControlNetImageLoader"]
+        image_node_exists = False
+        num_imageloader_nodes = 0
+        for key, value in params.items():
+            if key.startswith(imageloader_prefix):
+                num_imageloader_nodes += 1
+                if value["inputs"]["image"][0] == image:
+                    image_node_exists = True
+                    break
+
+        if not image_node_exists:
+            controlnet_imageloader_node = {
+                "class_type": "LoadBase64Image",
+                "inputs": {
+                    "image": image
+                }
+            }
+            params.update({
+                f"{DEFAULT_NODE_IDS['ControlNetImageLoader']}+{num_imageloader_nodes}": controlnet_imageloader_node
+            })
+
+        #model loading
+        controlnetloader_prefix = DEFAULT_NODE_IDS["ControlNetLoader"]
+        model_node_exists = False
+        num_controlnetloader_nodes = 0
+        for key, value in params.items():
+            if key.startswith(controlnetloader_prefix):
+                num_controlnetloader_nodes += 1
+                if value["inputs"]["control_net_name"][0] == self.cfg(f"controlnet{unit}_model", str):
+                    model_node_exists = True
+                    break
+
+        if not model_node_exists:
+            controlnet_loader_node = {
+                "class_type": "ControlNetLoader",
+                "inputs": {
+                    "control_net_name": self.cfg(f"controlnet{unit}_model", str)
+                }
+            }
+            params.update({
+                f"{DEFAULT_NODE_IDS['ControlNetLoader']}+{num_controlnetloader_nodes}": controlnet_loader_node
+            })
+
+        preprocessor_prefix = self.cfg(f"controlnet{unit}_preprocessor", str)
+        if preprocessor_prefix == "None":
+            pass
+        else:
+            inputs = self.cfg(f"controlnet{unit}_preprocessor_inputs")
+            inputs.update({image: [
+                f"{DEFAULT_NODE_IDS['ControlNetLoader']}+{num_controlnetloader_nodes}", 0
+            ]})
+            preprocessor_node = {
+                "class_type": f"{preprocessor_prefix}Preprocessor",
+                "inputs": inputs
+            }
+            params.update({
+                f"{preprocessor_prefix}+{unit}": preprocessor_node
+            })
+
+        apply_controlnet_node = {
+            "class_type": "ControlNetApplyAdvanced",
+            "inputs": {
+                "strength": self.cfg(f"controlnet{unit}_weight", float),
+                "start_percent": self.cfg(f"controlnet{unit}_guidance_start", float),
+                "end_percent": self.cfg(f"controlnet{unit}_guidance_end", float),
+                "positive": [
+                    prev if prev != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_pos']}",
+                    0
+                ],
+                "control_net": [
+                    f"{DEFAULT_NODE_IDS['ControlNetLoader']}+{num_controlnetloader_nodes}",
+                    0
+                ],
+                "image": [
+                    f"{DEFAULT_NODE_IDS['ControlNetImageLoader']}+{num_imageloader_nodes}" if \
+                        preprocessor_prefix == "None" else f"{preprocessor_prefix}+{unit}",
+                    0    
+                ]
+            }
+        }
+
+        id = f"{DEFAULT_NODE_IDS['ControlNetApplyAdvanced']}+{unit}"
+        params.update({id: apply_controlnet_node})
+        return id
 
     def get_config(self):
-        def check_response(obj):
+        def check_response(obj, keys):
             def on_success():
                 self.is_connected = True
                 self.status.emit(STATE_READY)
@@ -695,6 +760,8 @@ class Client(QObject):
 
             try:
                 assert obj is not None
+                for key in keys:
+                    assert key in obj
                 on_success()
             except:
                 self.status.emit(
@@ -708,18 +775,16 @@ class Client(QObject):
                 check_response(obj)
             except:
                 return
-
-            if "LatentUpscale" in obj:
+            if obj["LatentUpscale"]:
                 node = obj["LatentUpscale"]["input"]["required"]
-                self.cfg.set("upscaler_methods_list",
-                             node["upscale_method"][0])
-            if "UpscaleModelLoader" in obj:
+                self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
+            elif obj["UpscaleModelLoader"]:
                 node = obj["UpscaleModelLoader"]["input"]["required"]
                 self.cfg.set("upscaler_model_list", node["model_name"][0])
 
         def on_get_sampler_data(obj):
             try:
-                check_response(obj)
+                check_response(obj, ["KSampler"])
             except:
                 return
 
@@ -733,7 +798,7 @@ class Client(QObject):
 
         def on_get_models(obj):
             try:
-                check_response(obj)
+                check_response(obj, ["CheckpointLoaderSimple"])
             except:
                 return
 
@@ -742,7 +807,7 @@ class Client(QObject):
 
         def on_get_VAE(obj):
             try:
-                check_response(obj)
+                check_response(obj, ["VAELoader"])
             except:
                 return
 
@@ -762,9 +827,11 @@ class Client(QObject):
 
     def get_controlnet_config(self):
         '''Get models and modules for ControlNet'''
-        def check_response(obj, key: str):
+        def check_response(obj, keys = []):
             try:
-                assert key in obj
+                assert obj is not None
+                for key in keys:
+                    assert key in obj
             except:
                 self.status.emit(
                     f"{STATE_URLERROR}: incompatible response, are you running the right API?"
@@ -773,19 +840,23 @@ class Client(QObject):
                 return
 
         def set_model_list(obj):
-            key = "model_list"
-            check_response(obj, key)
-            self.cfg.set("controlnet_model_list", ["None"] + obj[key])
+            check_response(obj, ["ControlNetLoader"])
+            model_list = obj["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+            self.cfg.set("controlnet_model_list", ["None"] + model_list)
 
         def set_preprocessor_list(obj):
-            key = "module_list"
-            check_response(obj, key)
-            self.cfg.set("controlnet_preprocessor_list", obj[key])
+            check_response(obj)
+            preprocessors = [o["name"].replace("Preprocessor", "") for o in obj.values() if "preprocessors/" in o["category"]]
+            preprocessors_info = {}
+            for preprocessor_name in preprocessors:
+                preprocessors_info.update({
+                    preprocessor_name: obj[f"{preprocessor_name}Preprocessor"]["input"]["required"]
+                })
+            self.cfg.set("controlnet_preprocessor_list", ["None"] + preprocessors)
+            self.cfg.set("controlnet_preprocessors_info", preprocessors_info)
 
-        # Get controlnet API url
-        url = get_url(self.cfg, prefix=CONTROLNET_ROUTE_PREFIX)
-        self.get("model_list", set_model_list, base_url=url)
-        self.get("module_list", set_preprocessor_list, base_url=url)
+        self.get("object_info/ControlNetLoader", set_model_list)
+        self.get("object_info", set_preprocessor_list)
 
     def post_txt2img(self, cb, width, height, controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
@@ -884,6 +955,7 @@ class Client(QObject):
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
             self.loadLoRAs(params, "txt2img")
+            self.apply_controlnet(params, controlnet_src_imgs)
         self.get_images(params, cb)
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
@@ -994,6 +1066,7 @@ class Client(QObject):
                     self.upscale_latent(params, width, height, seed, "img2img")
             
             self.loadLoRAs(params, "img2img")
+            self.apply_controlnet(params, controlnet_src_imgs)
         self.get_images(params, cb)
 
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
@@ -1187,6 +1260,7 @@ class Client(QObject):
                     0
                 ]
             self.loadLoRAs(params, "inpaint")
+            self.apply_controlnet(params, controlnet_src_imgs)
         self.get_images(params, cb)
 
     def post_upscale(self, cb, src_img):

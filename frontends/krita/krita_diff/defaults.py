@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Dict
 
 # set combo box to error msg instead of blank when cannot retrieve options from backend
 ERROR_MSG = "Retrieval Failed"
@@ -48,169 +48,48 @@ TAB_PREVIEW = "krita_diff_preview"
 # Nodes
 
 DEFAULT_NODE_IDS = {
-    "KSampler": "3",
-    "CheckpointLoaderSimple" : "4",
-    "EmptyLatentImage": "5",
-    "ClipTextEncode_pos": "6",
-    "ClipTextEncode_neg": "7",
-    "VAEDecode": "8",
-    "SaveImage": "9",
-    "ClipSetLastLayer": "10",
-    "VAELoader": "11",
+    "KSampler": "KSampler",
+    "CheckpointLoaderSimple" : "CheckpointLoaderSimple",
+    "EmptyLatentImage": "EmptyLatentImage",
+    "ClipTextEncode_pos": "ClipTextEncode_pos",
+    "ClipTextEncode_neg": "ClipTextEncode_neg",
+    "VAEDecode": "VAEDecode",
+    "SaveImage": "SaveImage",
+    "ClipSetLastLayer": "ClipSetLastLayer",
+    "VAELoader": "VAELoader",
 
     #Upscale
-    "UpscaleModelLoader": "12",
-    "ImageUpscaleWithModel": "13",
-    "LatentUpscale": "14",
-    "KSampler_upscale": "15",
-    "VAEDecode_upscale": "16",
-    "ImageScale": "17",
-    "ImageScaleBy": "18",
-    "VAEEncode_upscale": "19",
-    "SetLatentNoiseMask_upscale": "20",
+    "UpscaleModelLoader": "UpscaleModelLoader",
+    "ImageUpscaleWithModel": "ImageUpscaleWithModel",
+    "LatentUpscale": "LatentUpscale",
+    "KSampler_upscale": "KSampler_upscale",
+    "VAEDecode_upscale": "VAEDecode_upscale",
+    "ImageScale": "ImageScale",
+    "ImageScaleBy": "ImageScaleBy",
+    "VAEEncode_upscale": "VAEEncode_upscale",
+    "SetLatentNoiseMask_upscale": "SetLatentNoiseMask_upscale",
 
     #Img2img
-    "LoadBase64Image": "21",
-    "VAEEncode": "22",
+    "LoadBase64Image": "LoadBase64Image",
+    "VAEEncode": "VAEEncode",
 
     #Inpaint
-    "LoadBase64ImageMask": "23",
-    "VAEEncodeForInpaint": "24",
-    "SetLatentNoiseMask": "25",
+    "LoadBase64ImageMask": "LoadBase64ImageMask",
+    "VAEEncodeForInpaint": "VAEEncodeForInpaint",
+    "SetLatentNoiseMask": "SetLatentNoiseMask",
 
     #Lora
-    "LoraLoader": "26"
-}
+    "LoraLoader": "LoraLoader",
 
-# controlnet
-CONTROLNET_PREPROCESSOR_SETTINGS = {
-    "canny": {
-        "resolution_label": "Annotator resolution",
-        "threshold_a_label": "Canny low threshold",
-        "threshold_b_label": "Canny high threshold",
-        "threshold_a_value": 100,
-        "threshold_b_value": 200,
-        "threshold_a_min_value": 1,
-        "threshold_a_max_value": 255,
-        "threshold_b_min_value": 1,
-        "threshold_b_max_value": 255
-    },
-    "depth_leres": {
-        "resolution_label": "LeReS resolution",
-        "threshold_a_label": "Remove near %",
-        "threshold_b_label": "Remove background %",
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 100,
-        "threshold_b_min_value": 0,
-        "threshold_b_max_value": 100
-    },
-    "depth_leres++": {
-        "resolution_label": "LeReS resolution",
-        "threshold_a_label": "Remove near %",
-        "threshold_b_label": "Remove background %",
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 100,
-        "threshold_b_min_value": 0,
-        "threshold_b_max_value": 100
-    },
-    "mediapipe_face": {
-        "threshold_a_label": "Max Faces",
-        "threshold_b_label": "Min Face Confidence",
-        "threshold_a_min_value": 1,
-        "threshold_a_max_value": 10,
-        "threshold_b_min_value": 0.01,
-        "threshold_b_max_value": 1,
-        "threshold_b_step": 0.01
-    },
-    "normal_midas": {
-        "threshold_a_label": "Normal background threshold",
-        "threshold_a_value": 0.4,
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 1,
-        "threshold_step": 0.01
-    },
-    "reference_adain": {
-        "threshold_a_label": "Style Fidelity (only for \"Balanced\" mode)",
-        "threshold_a_value": 0.5,
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 1,
-        "threshold_step": 0.01
-    },
-    "reference_adain+attn": {
-        "threshold_a_label": "Style Fidelity (only for \"Balanced\" mode)",
-        "threshold_a_value": 0.5,
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 1,
-        "threshold_step": 0.01
-    },
-    "reference_only": {
-        "threshold_a_label": "Style Fidelity (only for \"Balanced\" mode)",
-        "threshold_a_value": 0.5,
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 1,
-        "threshold_step": 0.01
-    },
-    "scribble_xdog": {
-        "threshold_a_label": "XDoG Threshold",
-        "threshold_a_value": 32,
-        "threshold_a_min_value": 1,
-        "threshold_a_max_value": 64
-    },
-    "threshold": {
-        "threshold_a_label": "Binarization Threshold",
-        "threshold_a_value": 127,
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 255
-    },
-    "tile_resample": {
-        "threshold_a_label": "Down Sampling Rate",
-        "threshold_a_value": 1,
-        "threshold_a_min_value": 1,
-        "threshold_a_max_value": 8,
-        "threshold_step": 0.01
-    },
-    "hed": {
-        "resolution_label": "HED resolution",
-    },
-    "mlsd": {
-        "resolution_label": "Hough resolution",
-        "threshold_a_label": "Hough value threshold (MLSD)",
-        "threshold_b_label": "Hough distance threshold (MLSD)",
-        "threshold_a_value": 0.1,
-        "threshold_b_value": 0.1,
-        "threshold_a_min_value": 0.01,
-        "threshold_b_max_value": 2,
-        "threshold_a_min_value": 0.01,
-        "threshold_b_max_value": 20,
-        "threshold_step": 0.01
-    },
-    "normal_map": {
-        "threshold_a_label": "Normal background threshold",
-        "threshold_a_value": 0.4,
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 1,
-        "threshold_step": 0.01
-    },
-    "openpose": {},
-    "openpose_hand": {},
-    "clip_vision": {},
-    "color": {},
-    "pidinet": {},
-    "scribble": {},
-    "fake_scribble": {
-        "resolution_label": "HED resolution",
-    },
-    "segmentation": {},
-    "binary": {
-        "threshold_a_label": "Binary threshold",
-        "threshold_a_min_value": 0,
-        "threshold_a_max_value": 255,
-    }
+    #Controlnet
+    "ControlNetLoader": "ControlNetLoader",
+    "ControlNetImageLoader": "ControlNetImageLoader",
+    "ControlNetApplyAdvanced": "ControlNetApplyAdvanced"
 }
 
 @dataclass(frozen=True)
 class Defaults:
-    base_url: str = "http://127.0.0.1:7860"
+    base_url: str = "http://127.0.0.1:8188"
     encryption_key: str = ""
     just_use_yaml: bool = False
     create_mask_layer: bool = True
@@ -305,146 +184,107 @@ class Defaults:
     controlnet_unit_list: List[str] = field(default_factory=lambda: list(str(i) for i in range(10)))
     controlnet_preprocessor_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     controlnet_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    controlnet_control_mode_list: List[str] = field(default_factory=lambda: ["Balanced", "My prompt is more important", "ControlNet is more important"])
+    controlnet_preprocessors_info: Dict[str, object] = field(default_factory=lambda: {})
+    #controlnet_control_mode_list: List[str] = field(default_factory=lambda: ["Balanced", "My prompt is more important", "ControlNet is more important"])
 
     controlnet0_enable: bool = False
-    controlnet0_low_vram: bool = False
-    controlnet0_pixel_perfect: bool = False
     controlnet0_preprocessor: str = "None" 
     controlnet0_model: str = "None"
     controlnet0_weight: float = 1.0
     controlnet0_guidance_start: float = 0
     controlnet0_guidance_end: float = 1
-    controlnet0_preprocessor_resolution: int = 512
-    controlnet0_threshold_a: float = 0
-    controlnet0_threshold_b: float = 0
+    controlnet0_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet0_input_image: str = ""
-    controlnet0_control_mode: str = "Balanced"
+    #controlnet0_control_mode: str = "Balanced"
 
     controlnet1_enable: bool = False
-    controlnet1_low_vram: bool = False
-    controlnet1_pixel_perfect: bool = False
     controlnet1_preprocessor: str = "None" 
     controlnet1_model: str = "None"
     controlnet1_weight: float = 1.0
     controlnet1_guidance_start: float = 0
     controlnet1_guidance_end: float = 1
-    controlnet1_preprocessor_resolution: int = 512
-    controlnet1_threshold_a: float = 0
-    controlnet1_threshold_b: float = 0
+    controlnet1_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet1_input_image: str = ""
-    controlnet1_control_mode: str = "Balanced"
+    #controlnet1_control_mode: str = "Balanced"
 
     controlnet2_enable: bool = False
-    controlnet2_low_vram: bool = False
-    controlnet2_pixel_perfect: bool = False
     controlnet2_preprocessor: str = "None"
     controlnet2_model: str = "None"
     controlnet2_weight: float = 1.0
     controlnet2_guidance_start: float = 0
     controlnet2_guidance_end: float = 1
-    controlnet2_preprocessor_resolution: int = 512
-    controlnet2_threshold_a: float = 0
-    controlnet2_threshold_b: float = 0
+    controlnet2_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet2_input_image: str = ""
-    controlnet2_control_mode: str = "Balanced"
+    #controlnet2_control_mode: str = "Balanced"
 
     controlnet3_enable: bool = False
-    controlnet3_low_vram: bool = False
-    controlnet3_pixel_perfect: bool = False
     controlnet3_preprocessor: str = "None"
     controlnet3_model: str = "None"
     controlnet3_weight: float = 1.0
     controlnet3_guidance_start: float = 0
     controlnet3_guidance_end: float = 1
-    controlnet3_preprocessor_resolution: int = 512
-    controlnet3_threshold_a: float = 0
-    controlnet3_threshold_b: float = 0
+    controlnet3_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet3_input_image: str = ""
-    controlnet3_control_mode: str = "Balanced"
+    #controlnet3_control_mode: str = "Balanced"
 
     controlnet4_enable: bool = False
-    controlnet4_low_vram: bool = False
-    controlnet4_pixel_perfect: bool = False
     controlnet4_preprocessor: str = "None"
     controlnet4_model: str = "None"
     controlnet4_weight: float = 1.0
     controlnet4_guidance_start: float = 0
     controlnet4_guidance_end: float = 1
-    controlnet4_preprocessor_resolution: int = 512
-    controlnet4_threshold_a: float = 0
-    controlnet4_threshold_b: float = 0
+    controlnet4_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet4_input_image: str = ""
-    controlnet4_control_mode: str = "Balanced"
+    #controlnet4_control_mode: str = "Balanced"
 
     controlnet5_enable: bool = False
-    controlnet5_low_vram: bool = False
-    controlnet5_pixel_perfect: bool = False
     controlnet5_preprocessor: str = "None"
     controlnet5_model: str = "None"
     controlnet5_weight: float = 1.0
     controlnet5_guidance_start: float = 0
     controlnet5_guidance_end: float = 1
-    controlnet5_preprocessor_resolution: int = 512
-    controlnet5_threshold_a: float = 0
-    controlnet5_threshold_b: float = 0
+    controlnet5_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet5_input_image: str = ""
-    controlnet5_control_mode: str = "Balanced"
+    #controlnet5_control_mode: str = "Balanced"
 
     controlnet6_enable: bool = False
-    controlnet6_low_vram: bool = False
-    controlnet6_pixel_perfect: bool = False
     controlnet6_preprocessor: str = "None"
     controlnet6_model: str = "None"
     controlnet6_weight: float = 1.0
     controlnet6_guidance_start: float = 0
     controlnet6_guidance_end: float = 1
-    controlnet6_preprocessor_resolution: int = 512
-    controlnet6_threshold_a: float = 0
-    controlnet6_threshold_b: float = 0
+    controlnet6_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet6_input_image: str = ""
-    controlnet6_control_mode: str = "Balanced"
+    #controlnet6_control_mode: str = "Balanced"
 
     controlnet7_enable: bool = False
-    controlnet7_low_vram: bool = False
-    controlnet7_pixel_perfect: bool = False
     controlnet7_preprocessor: str = "None"
     controlnet7_model: str = "None"
     controlnet7_weight: float = 1.0
     controlnet7_guidance_start: float = 0
     controlnet7_guidance_end: float = 1
-    controlnet7_preprocessor_resolution: int = 512
-    controlnet7_threshold_a: float = 0
-    controlnet7_threshold_b: float = 0
+    controlnet7_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet7_input_image: str = ""
-    controlnet7_control_mode: str = "Balanced"
+    #controlnet7_control_mode: str = "Balanced"
 
     controlnet8_enable: bool = False
-    controlnet8_low_vram: bool = False
-    controlnet8_pixel_perfect: bool = False
     controlnet8_preprocessor: str = "None"
     controlnet8_model: str = "None"
     controlnet8_weight: float = 1.0
     controlnet8_guidance_start: float = 0
     controlnet8_guidance_end: float = 1
-    controlnet8_preprocessor_resolution: int = 512
-    controlnet8_threshold_a: float = 0
-    controlnet8_threshold_b: float = 0
+    controlnet8_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet8_input_image: str = ""
-    controlnet8_control_mode: str = "Balanced"
+    #controlnet8_control_mode: str = "Balanced"
 
     controlnet9_enable: bool = False
-    controlnet9_low_vram: bool = False
-    controlnet9_pixel_perfect: bool = False
     controlnet9_preprocessor: str = "None"
     controlnet9_model: str = "None"
     controlnet9_weight: float = 1.0
     controlnet9_guidance_start: float = 0
     controlnet9_guidance_end: float = 1
-    controlnet9_preprocessor_resolution: int = 512
-    controlnet9_threshold_a: float = 0
-    controlnet9_threshold_b: float = 0
+    controlnet9_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet9_input_image: str = ""
-    controlnet9_control_mode: str = "Balanced"
+    #controlnet9_control_mode: str = "Balanced"
 
 DEFAULTS = Defaults()
