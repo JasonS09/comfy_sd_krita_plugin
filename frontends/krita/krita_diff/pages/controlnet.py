@@ -150,34 +150,39 @@ class ControlNetUnitSettings(QWidget):
         self.setLayout(layout)
         self.add_preprocessor_options()
 
-    def set_input(self, input, key, value):
-        input.update({key: value})
-        script.cfg.set(f"controlnet{self.unit}_inputs", input)
+    def set_input(self, inputs, key, value):
+        inputs.update({key: value})
+        script.cfg.set(f"controlnet{self.unit}_inputs", inputs)
     
-    def add_spinbox(self, key, default = None, **kwargs):
+    def add_spinbox(self, key, value = None, **kwargs):
         label = key.capitalize().replace("_", " ")+":"
+        inputs = dict(script.cfg(f"controlnet{self.unit}_inputs", dict))
         widget = QSpinBoxLayout(script.cfg, "", label=label, **kwargs)
-        if default is not None:
-            widget.qspin.setValue(default)
+        if value is not None:
+            widget.qspin.setValue(value)
         widget.qspin.valueChanged.connect(
-            lambda value: self.set_input(dict(script.cfg(f"controlnet{self.unit}_inputs", dict)), key, value)
+            lambda value: self.set_input(inputs, key, value)
         )
+        self.set_input(inputs, key, widget.qspin.value())
         self.preprocessor_settings_layout.addLayout(widget)
     
-    def add_combobox(self, key, default = None, options = None, **kwargs):
+    def add_combobox(self, key, value = None, options = None, **kwargs):
         label = key.capitalize().replace("_", " ")+":"
+        inputs = dict(script.cfg(f"controlnet{self.unit}_inputs", dict))
         widget = QComboBoxLayout(script.cfg, [], "", label=label, **kwargs)
-        if default is not None:
-            widget.qcombo.setEditText(default)
+        if value is not None:
+            widget.qcombo.setEditText(value)
         widget.qcombo.addItems(options)
         widget.qcombo.editTextChanged.connect(
-            lambda value: self.set_input(dict(script.cfg(f"controlnet{self.unit}_inputs", dict)), key, value)
+            lambda value: self.set_input(inputs, key, value)
         )
+        self.set_input(inputs, key, widget.qcombo.currentText())
         self.preprocessor_settings_layout.addLayout(widget)    
 
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
         for preprocessor, inputs in script.cfg("controlnet_preprocessors_info", dict).items():
+            preprocessor_inputs = script.cfg(f"controlnet{self.unit}_inputs", dict)
             if preprocessor == script.cfg(f"controlnet{self.unit}_preprocessor", str):
                 for key, value in inputs.items():
                     if value[0] in ["IMAGE", "MASK", "LATENT", "MODEL"]:
@@ -185,9 +190,17 @@ class ControlNetUnitSettings(QWidget):
                     if value[0] == "INT" or value[0] == "FLOAT":
                         rest = value[1].copy()
                         rest.pop("default")
-                        self.add_spinbox(key, value[1]["default"], **rest)
+                        self.add_spinbox(
+                            key, 
+                            preprocessor_inputs[key] if key in preprocessor_inputs else value[1]["default"], 
+                            **rest
+                        )
                     else:
-                        self.add_combobox(key, value[1]["default"], value[0])
+                        self.add_combobox(
+                            key, 
+                            preprocessor_inputs[key] if key in preprocessor_inputs else value[1]["default"],
+                            value[0]
+                        )
 
     def enable_changed(self, state):
         if state == 1 or state == 2:

@@ -428,11 +428,11 @@ class Script(QObject):
 
         def cb(response):
             assert response is not None, "Backend Error, check terminal"
-            output = response["images"][0]
+            output = response["outputs"]
             pixmap = QPixmap.fromImage(b64_to_img(output))
             self.controlnet_preview_annotator_received.emit(pixmap)
 
-        self.client.post_controlnet_preview(cb, image, self.width, self.height)
+        self.client.post_controlnet_preview(cb, image)
 
     def apply_simple_upscale(self):
         insert = self.img_inserter(self.x, self.y, self.width, self.height)

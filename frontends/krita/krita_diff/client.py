@@ -666,6 +666,7 @@ class Client(QObject):
         '''Call only when base prompt structure is already stored in params,
         otherwise will probably not work'''
         #Image loading
+        preprocessor_prefix = self.cfg(f"controlnet{unit}_preprocessor", str)
         imageloader_prefix = DEFAULT_NODE_IDS["ControlNetImageLoader"]
         image_node_exists = False
         num_imageloader_nodes = 0
@@ -676,6 +677,8 @@ class Client(QObject):
                     image_node_exists = True
                     break
 
+        imageloader_node_id = f"{imageloader_prefix}+{num_imageloader_nodes}"
+
         if not image_node_exists:
             controlnet_imageloader_node = {
                 "class_type": "LoadBase64Image",
@@ -684,8 +687,62 @@ class Client(QObject):
                 }
             }
             params.update({
-                f"{DEFAULT_NODE_IDS['ControlNetImageLoader']}+{num_imageloader_nodes}": controlnet_imageloader_node
+                imageloader_node_id: controlnet_imageloader_node
             })
+
+        if "Reference" in preprocessor_prefix:
+            last_lora_id = ""
+            for key in params.keys():
+                if key.startswith(DEFAULT_NODE_IDS["LoraLoader"]):
+                    last_lora_id = key
+
+            vae_id = DEFAULT_NODE_IDS["VAELoader"]
+            checkpoint_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+            vaeencode_reference_node = {
+                "class_type": "VAEEncode",
+                "inputs": {
+                    "pixels": [
+                        imageloader_node_id,
+                        0
+                    ],
+                    "vae": [
+                        vae_id if vae_id in params else checkpoint_loader_id,
+                        0 if vae_id in params else 2
+                    ]
+                }
+            }
+            vaeencode_reference_node_id = f"{DEFAULT_NODE_IDS['VAEEncode']}Reference"
+            params.update({
+                vaeencode_reference_node_id: vaeencode_reference_node,
+            })
+            inputs = self.cfg(f"controlnet{unit}_inputs", dict)
+            inputs.update({
+                "ref": [
+                    vaeencode_reference_node_id,
+                    0
+                ],
+                "model": [
+                    last_lora_id if last_lora_id != "" else checkpoint_loader_id,
+                    0
+                ]
+            })
+            preprocessor_node = {
+                "class_type": f"{preprocessor_prefix}Preprocessor",
+                "inputs": inputs
+            }
+            preprocessor_node_id = f"{preprocessor_prefix}+{unit}"
+            params.update({
+                preprocessor_node_id: preprocessor_node
+            })
+            params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
+                preprocessor_node_id, 0
+            ]
+            return prev   
+
+        if "Inpaint" in preprocessor_prefix:
+            mask_node_id = DEFAULT_NODE_IDS["LoadBase64ImageMask"]
+            mask_node = mask_node_id if mask_node_id in params else imageloader_node_id
+            mask_node_output_num = 0 if mask_node_id in params else 1
 
         #model loading
         controlnetloader_prefix = DEFAULT_NODE_IDS["ControlNetLoader"]
@@ -698,6 +755,7 @@ class Client(QObject):
                     model_node_exists = True
                     break
 
+        controlnetloader_node_id = f"{controlnetloader_prefix}+{num_controlnetloader_nodes}"
         if not model_node_exists:
             controlnet_loader_node = {
                 "class_type": "ControlNetLoader",
@@ -706,23 +764,23 @@ class Client(QObject):
                 }
             }
             params.update({
-                f"{DEFAULT_NODE_IDS['ControlNetLoader']}+{num_controlnetloader_nodes}": controlnet_loader_node
+                controlnetloader_node_id: controlnet_loader_node
             })
 
-        preprocessor_prefix = self.cfg(f"controlnet{unit}_preprocessor", str)
-        if preprocessor_prefix == "None":
-            pass
-        else:
-            inputs = self.cfg(f"controlnet{unit}_preprocessor_inputs")
-            inputs.update({image: [
-                f"{DEFAULT_NODE_IDS['ControlNetLoader']}+{num_controlnetloader_nodes}", 0
-            ]})
+        if preprocessor_prefix != "None":
+            inputs = self.cfg(f"controlnet{unit}_inputs")
+            inputs.update({"image": [imageloader_node_id, 0]})
+
+            if "Inpaint" in preprocessor_prefix:
+                inputs.update({"mask": [mask_node, mask_node_output_num]})
+
             preprocessor_node = {
                 "class_type": f"{preprocessor_prefix}Preprocessor",
                 "inputs": inputs
             }
+            preprocessor_node_id = f"{preprocessor_prefix}+{unit}"
             params.update({
-                f"{preprocessor_prefix}+{unit}": preprocessor_node
+                preprocessor_node_id: preprocessor_node
             })
 
         apply_controlnet_node = {
@@ -735,13 +793,16 @@ class Client(QObject):
                     prev if prev != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_pos']}",
                     0
                 ],
+                "negative": [
+                    prev if prev != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_neg']}",
+                    1 if prev != "" else 0
+                ],
                 "control_net": [
-                    f"{DEFAULT_NODE_IDS['ControlNetLoader']}+{num_controlnetloader_nodes}",
+                    controlnetloader_node_id,
                     0
                 ],
                 "image": [
-                    f"{DEFAULT_NODE_IDS['ControlNetImageLoader']}+{num_imageloader_nodes}" if \
-                        preprocessor_prefix == "None" else f"{preprocessor_prefix}+{unit}",
+                    imageloader_node_id if preprocessor_prefix == "None" else preprocessor_node_id,
                     0    
                 ]
             }
@@ -878,8 +939,7 @@ class Client(QObject):
                         "sd_max_size", int), width, height
                 )
 
-            params = self.common_params(
-                resized_width, resized_height, controlnet_src_imgs)
+            params = self.common_params()
             ksampler_node = {
                 "class_type": "KSampler",
                 "inputs": {
@@ -977,8 +1037,7 @@ class Client(QObject):
                         "sd_max_size", int), width, height
                 )
 
-            params = self.common_params(
-                resized_width, resized_height, controlnet_src_imgs)
+            params = self.common_params()
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
@@ -1090,8 +1149,7 @@ class Client(QObject):
                         "sd_max_size", int), width, height
                 )
 
-            params = self.common_params(
-                resized_width, resized_height, controlnet_src_imgs)
+            params = self.common_params()
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
@@ -1361,32 +1419,50 @@ class Client(QObject):
 
         self.get_images(params, cb)
 
-    def post_controlnet_preview(self, cb, src_img, width, height):
-        def get_pixel_perfect_preprocessor_resolution():
-            if self.cfg("disable_sddebz_highres", bool):
-                return min(width, height)
+    def post_controlnet_preview(self, cb, src_img):
+        unit = self.cfg("controlnet_unit", int)
+        preprocessor_prefix = self.cfg(f"controlnet{unit}_preprocessor", str)
+        try:
+            assert "Inpaint" not in preprocessor_prefix
+            assert "Reference" not in preprocessor_prefix
+        except:
+            self.status.emit(
+                    "Preprocessor not supported for preview."
+                )
+            return
 
-            resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg(
-                    "sd_max_size", int), width, height
-            )
-            return min(resized_width, resized_height)
+        loadimage_node = {
+            "class_type": "LoadBase64Image",
+            "inputs": {
+                "image": img_to_b64(src_img)
+            }
+        }
+        inputs = self.cfg(f"controlnet{unit}_inputs")
+        inputs.update({"image": [
+            DEFAULT_NODE_IDS['ControlNetImageLoader'], 0
+        ]})
+        preprocessor_node = {
+            "class_type": f"{preprocessor_prefix}Preprocessor",
+            "inputs": inputs
+        }
+        saveimage_node = {
+            "class_type": "SaveImage",
+            "inputs": {
+                "filename_prefix": "ComfyUI",
+                "images": [
+                    preprocessor_prefix,
+                    0
+                ]
+            }
+        }
 
-        unit = self.cfg("controlnet_unit", str)
-        preprocessor_resolution = get_pixel_perfect_preprocessor_resolution() if self.cfg(f"controlnet{unit}_pixel_perfect", bool)  \
-            else self.cfg(f"controlnet{unit}_preprocessor_resolution", int)
+        params = {
+            DEFAULT_NODE_IDS['ControlNetImageLoader']: loadimage_node,
+            preprocessor_prefix: preprocessor_node,
+            DEFAULT_NODE_IDS['SaveImage']: saveimage_node
+        }
 
-        params = (
-            {
-                "controlnet_module": self.cfg(f"controlnet{unit}_preprocessor", str),
-                "controlnet_input_images": [img_to_b64(src_img)],
-                "controlnet_processor_res": preprocessor_resolution,
-                "controlnet_threshold_a": self.cfg(f"controlnet{unit}_threshold_a", float),
-                "controlnet_threshold_b": self.cfg(f"controlnet{unit}_threshold_b", float)
-            }  # Not sure if it's necessary to make the just_use_yaml validation here
-        )
-        url = get_url(self.cfg, prefix=CONTROLNET_ROUTE_PREFIX)
-        self.post("detect", params, cb, url)
+        self.get_images(params, cb)
 
     def post_interrupt(self, cb):
         self.post("interrupt", {}, cb, is_long=False)
