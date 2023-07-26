@@ -23,7 +23,6 @@ from .defaults import (
     ERR_NO_CONNECTION,
     LONG_TIMEOUT,
     ROUTE_PREFIX,
-    CONTROLNET_ROUTE_PREFIX,
     SHORT_TIMEOUT,
     STATE_DONE,
     STATE_READY,
@@ -737,6 +736,10 @@ class Client(QObject):
             params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
                 preprocessor_node_id, 0
             ]
+            if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
+                params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [
+                    preprocessor_node_id, 0
+                ]
             return prev   
 
         if "Inpaint" in preprocessor_prefix:
