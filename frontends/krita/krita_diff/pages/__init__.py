@@ -6,3 +6,4 @@ from .preview import PreviewPage
 from .txt2img import Txt2ImgPage
 from .upscale import UpscalePage
 from .controlnet import ControlNetPage
+from .workflow import WorkflowPage

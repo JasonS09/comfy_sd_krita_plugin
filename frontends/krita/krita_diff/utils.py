@@ -1,6 +1,5 @@
 import json
 import re
-import random
 from itertools import cycle
 from math import ceil
 
@@ -15,7 +14,8 @@ from .defaults import (
     TAB_SDCOMMON,
     TAB_TXT2IMG,
     TAB_UPSCALE,
-    TAB_CONTROLNET
+    TAB_CONTROLNET,
+    TAB_WORKFLOW
 )
 
 
@@ -235,6 +235,7 @@ def reset_docker_layout():
         TAB_IMG2IMG,
         TAB_TXT2IMG,
         TAB_UPSCALE,
+        TAB_WORKFLOW,
         TAB_INPAINT,
         TAB_PREVIEW,
     }
@@ -257,6 +258,7 @@ def reset_docker_layout():
     qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_IMG2IMG])
     qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_INPAINT])
     qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_UPSCALE])
+    qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_WORKFLOW])
     dockers[TAB_SDCOMMON].raise_()
     dockers[TAB_INPAINT].raise_()
 

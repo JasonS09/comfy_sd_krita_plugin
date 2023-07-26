@@ -41,6 +41,7 @@ TAB_TXT2IMG = "krita_diff_txt2img"
 TAB_IMG2IMG = "krita_diff_img2img"
 TAB_INPAINT = "krita_diff_inpaint"
 TAB_UPSCALE = "krita_diff_upscale"
+TAB_WORKFLOW = "krita_diff_workflow"
 TAB_CONTROLNET = "krita_diff_controlnet"
 TAB_CONTROLNET = "krita_diff_controlnet"
 TAB_PREVIEW = "krita_diff_preview"
@@ -135,8 +136,7 @@ class Defaults:
     txt2img_cfg_scale: float = 7.0
     txt2img_denoising_strength: float = 0.7
     txt2img_seed: str = ""
-    txt2img_script: str = "None"
-    txt2img_script_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    txt2img_workflow: str = ""
     # TODO: Seed variation
 
     img2img_prompt: str = ""
@@ -150,9 +150,8 @@ class Defaults:
     img2img_denoising_strength: float = 0.8
     img2img_seed: str = ""
     img2img_color_correct: bool = False
-    img2img_script: str = "None"
-    img2img_script_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     img2img_input_save_as: str = "input.png"
+    img2img_workflow: str = ""
 
     inpaint_prompt: str = ""
     inpaint_negative_prompt: str = ""
@@ -173,12 +172,16 @@ class Defaults:
     # inpaint_full_res: bool = False
     # inpaint_full_res_padding: int = 32
     inpaint_color_correct: bool = False
-    inpaint_script: str = "None"
-    inpaint_script_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     inpaint_mask_weight: float = 1.0
+    inpaint_workflow: str = ""
 
     upscale_upscaler_name: str = "None"
     upscale_upscale_by: float = 1.0
+    upscale_workflow: str = ""
+
+    workflow_to_list: List[str] = field(default_factory=lambda: ["none", "txt2img", "img2img", "inpaint", "upscale"])
+    workflow_to: str = "none"
+    none_workflow: str = ""
 
     controlnet_unit: str = "0"
     controlnet_unit_list: List[str] = field(default_factory=lambda: list(str(i) for i in range(10)))

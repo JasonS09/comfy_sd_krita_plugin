@@ -8,7 +8,8 @@ from .defaults import (
     TAB_SDCOMMON,
     TAB_TXT2IMG,
     TAB_UPSCALE,
-    TAB_CONTROLNET
+    TAB_CONTROLNET,
+    TAB_WORKFLOW
 )
 from .docker import create_docker
 from .extension import SDPluginExtension
@@ -19,7 +20,8 @@ from .pages import (
     SDCommonPage,
     Txt2ImgPage,
     UpscalePage,
-    ControlNetPage
+    ControlNetPage,
+    WorkflowPage
 )
 from .pages.preview import PreviewPage
 from .script import script
@@ -60,6 +62,13 @@ instance.addDockWidgetFactory(
         TAB_UPSCALE,
         DockWidgetFactoryBase.DockLeft,
         create_docker(UpscalePage),
+    )
+)
+instance.addDockWidgetFactory(
+    DockWidgetFactory(
+        TAB_WORKFLOW,
+        DockWidgetFactoryBase.DockLeft,
+        create_docker(WorkflowPage),
     )
 )
 instance.addDockWidgetFactory(
