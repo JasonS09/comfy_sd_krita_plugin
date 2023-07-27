@@ -1,7 +1,9 @@
 from krita import QPushButton, QVBoxLayout, QWidget
 
 from ..script import script
-from ..widgets import QComboBoxLayout, QLabel, StatusBar, QSpinBoxLayout
+from ..widgets import (
+    QComboBoxLayout, QLabel, StatusBar, QSpinBoxLayout, QCheckBox
+)
 from ..utils import get_workflow
 
 class UpscalePage(QWidget):
@@ -11,6 +13,10 @@ class UpscalePage(QWidget):
         super(UpscalePage, self).__init__(*args, **kwargs)
 
         self.status_bar = StatusBar()
+
+        self.custom_workflow = QCheckBox(
+            script.cfg, "upscale_custom_workflow", label="Enable custom workflow"
+        )
 
         self.upscaler_layout = QComboBoxLayout(
             script.cfg, 
@@ -38,6 +44,7 @@ NOTE:<br/>
         layout.setContentsMargins(0, 0, 0, 0)
 
         layout.addWidget(self.status_bar)
+        layout.addWidget(self.custom_workflow)
         layout.addWidget(self.note)
         layout.addLayout(self.upscaler_layout)
         layout.addLayout(self.upscale_by)
@@ -48,11 +55,13 @@ NOTE:<br/>
         self.setLayout(layout)
 
     def cfg_init(self):
+        self.custom_workflow.cfg_init()
         self.upscaler_layout.cfg_init()
         self.upscale_by.cfg_init()
         self.note.setVisible(not script.cfg("minimize_ui", bool))
 
     def cfg_connect(self):
+        self.custom_workflow.cfg_connect()
         self.upscaler_layout.cfg_connect()
         self.upscale_by.cfg_connect()
         self.btn.released.connect(lambda: script.action_simple_upscale())

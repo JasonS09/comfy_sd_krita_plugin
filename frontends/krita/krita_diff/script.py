@@ -314,7 +314,7 @@ class Script(QObject):
 
         sel_image = self.get_selection_image()
         self.client.post_txt2img(
-            cb, self.width, self.height, 
+            cb, self.width, self.height, sel_image,
             self.get_controlnet_input_images(sel_image)
         )
 
@@ -445,9 +445,10 @@ class Script(QObject):
 
         def cb(response):
             assert response is not None, "Backend Error, check terminal"
-            output = response["outputs"]
+            output = response["outputs"][0]
             insert(f"upscale", output)
             self.doc.refreshProjection()
+            self.client.images_received.disconnect(cb)
 
         self.client.post_upscale(cb, sel_image)
 
@@ -480,8 +481,13 @@ class Script(QObject):
     def apply_run_workflow(self, workflow):
         # freeze selection region
         is_inpaint = self.cfg("workflow_to", str) == "inpaint"
-        glayer = self.doc.createGroupLayer("Unnamed Group")
-        self.doc.rootNode().addChildNode(glayer, None)
+        is_upscale = self.cfg("workflow_to", str) == "upscale"
+        glayer = None
+
+        if not is_upscale:
+            glayer = self.doc.createGroupLayer("Unnamed Group")
+            self.doc.rootNode().addChildNode(glayer, None)
+
         insert = self.img_inserter(
             self.x, self.y, self.width, self.height, False, glayer
         )
@@ -491,19 +497,24 @@ class Script(QObject):
         def cb(response):
             assert response is not None
             outputs = response["outputs"]
-            glayer_name, layer_names = get_desc_from_resp(response, "workflow")
-            layers = [
-                insert(name if name else f"workflow {i + 1}", output)
-                for output, name, i in zip(outputs, layer_names, itertools.count())
-            ]
-            if self.cfg("hide_layers", bool):
-                for layer in layers[:-1]:
-                    layer.setVisible(False)
-            if glayer:
-                glayer.setName(glayer_name)
-            self.doc.refreshProjection()
-            if not is_inpaint:
-                mask_trigger(layers)
+
+            if is_upscale:
+                insert(f"upscale", outputs[0])
+                self.doc.refreshProjection()
+            else:
+                glayer_name, layer_names = get_desc_from_resp(response, "workflow")
+                layers = [
+                    insert(name if name else f"workflow {i + 1}", output)
+                    for output, name, i in zip(outputs, layer_names, itertools.count())
+                ]
+                if self.cfg("hide_layers", bool):
+                    for layer in layers[:-1]:
+                        layer.setVisible(False)
+                if glayer:
+                    glayer.setName(glayer_name)
+                self.doc.refreshProjection()
+                if not is_inpaint:
+                    mask_trigger(layers)
 
             self.client.images_received.disconnect(cb)
         

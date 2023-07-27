@@ -48,11 +48,11 @@ TAB_PREVIEW = "krita_diff_preview"
 # Nodes
 
 DEFAULT_NODE_IDS = {
-    "KSampler": "KSampler",
+    "KSampler": "3",
     "CheckpointLoaderSimple" : "CheckpointLoaderSimple",
     "EmptyLatentImage": "EmptyLatentImage",
-    "ClipTextEncode_pos": "ClipTextEncode_pos",
-    "ClipTextEncode_neg": "ClipTextEncode_neg",
+    "ClipTextEncode_pos": "6",
+    "ClipTextEncode_neg": "7",
     "VAEDecode": "VAEDecode",
     "SaveImage": "SaveImage",
     "ClipSetLastLayer": "ClipSetLastLayer",
@@ -141,6 +141,7 @@ class Defaults:
     txt2img_denoising_strength: float = 0.7
     txt2img_seed: str = ""
     txt2img_workflow: str = ""
+    txt2img_custom_workflow: bool = False
     # TODO: Seed variation
 
     img2img_prompt: str = ""
@@ -156,6 +157,7 @@ class Defaults:
     img2img_color_correct: bool = False
     img2img_input_save_as: str = "input.png"
     img2img_workflow: str = ""
+    img2img_custom_workflow: bool = False
 
     inpaint_prompt: str = ""
     inpaint_negative_prompt: str = ""
@@ -178,10 +180,12 @@ class Defaults:
     inpaint_color_correct: bool = False
     inpaint_mask_weight: float = 1.0
     inpaint_workflow: str = ""
+    inpaint_custom_workflow: bool = False
 
     upscale_upscaler_name: str = "None"
     upscale_upscale_by: float = 1.0
     upscale_workflow: str = ""
+    upscale_custom_workflow: bool = False
 
     workflow_to_list: List[str] = field(default_factory=lambda: ["none", "txt2img", "img2img", "inpaint", "upscale"])
     workflow_to: str = "none"

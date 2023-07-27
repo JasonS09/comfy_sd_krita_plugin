@@ -7,6 +7,7 @@ from ..widgets import (
     QPromptLayout,
     QSpinBoxLayout,
     StatusBar,
+    QCheckBox
 )
 
 class SDImgPageBase(QWidget):
@@ -14,6 +15,10 @@ class SDImgPageBase(QWidget):
         super(SDImgPageBase, self).__init__(*args, **kwargs)
 
         self.status_bar = StatusBar()
+
+        self.custom_workflow = QCheckBox(
+            script.cfg, f"{cfg_prefix}_custom_workflow", label="Enable custom workflow"
+        )
 
         self.prompt_layout = QPromptLayout(
             script.cfg, f"{cfg_prefix}_prompt", f"{cfg_prefix}_negative_prompt"
@@ -56,6 +61,7 @@ class SDImgPageBase(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         layout.addWidget(self.status_bar)
+        layout.addWidget(self.custom_workflow)
         layout.addLayout(self.prompt_layout)
         layout.addLayout(self.seed_layout)
         layout.addLayout(self.sampler_layout)
@@ -73,6 +79,7 @@ class SDImgPageBase(QWidget):
         )
 
     def cfg_init(self):
+        self.custom_workflow.cfg_init()
         self.prompt_layout.cfg_init()
         self.seed_layout.cfg_init()
         self.sampler_layout.cfg_init()
@@ -82,6 +89,7 @@ class SDImgPageBase(QWidget):
         self.denoising_strength_layout.cfg_init()
 
     def cfg_connect(self):
+        self.custom_workflow.cfg_connect()
         self.prompt_layout.cfg_connect()
         self.seed_layout.cfg_connect()
         self.sampler_layout.cfg_connect()

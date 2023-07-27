@@ -221,7 +221,7 @@ class Client(QObject):
                 return {
                     "info": {},
                     # Assuming it's the result of a simple upscale.
-                    "outputs": images[0]
+                    "outputs": images
                 }
 
         def on_history_received(history_res):
@@ -271,10 +271,10 @@ class Client(QObject):
     def get_image(self, filename, subfolder, folder_type, cb=None):
         data = {"filename": filename,
                 "subfolder": subfolder, "type": folder_type}
-        self.get("view", cb, data=data, is_long=False)
+        self.get("view", cb, data=data)
 
     def get_history(self, prompt_id, cb=None):
-        self.get(f"history/{prompt_id}", cb, is_long=False)
+        self.get(f"history/{prompt_id}", cb)
 
     def check_progress(self, cb):
         def on_progress_checked(res):
@@ -542,7 +542,7 @@ class Client(QObject):
             0
         ]
         params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
-            self.cfg("inpaint_steps", int)/2)
+            self.cfg(f"{cfg_prefix}_steps", int)/2)
 
     def upscale_with_model(self, params, width, height, seed, cfg_prefix):
         '''Call only when base prompt structure is already stored in params,
@@ -647,7 +647,7 @@ class Client(QObject):
             0
         ]
         params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
-            self.cfg("inpaint_steps", int)/2)
+            self.cfg(f"{cfg_prefix}_steps", int)/2)
         
     def apply_controlnet(self, params, controlnet_src_imgs):
         if controlnet_src_imgs:
@@ -693,58 +693,58 @@ class Client(QObject):
                 imageloader_node_id: controlnet_imageloader_node
             })
 
-        if "Reference" in preprocessor_prefix:
-            last_lora_id = ""
-            for key in params.keys():
-                if key.startswith(DEFAULT_NODE_IDS["LoraLoader"]):
-                    last_lora_id = key
+        # if "Reference" in preprocessor_prefix:
+        #     last_lora_id = ""
+        #     for key in params.keys():
+        #         if key.startswith(DEFAULT_NODE_IDS["LoraLoader"]):
+        #             last_lora_id = key
 
-            vae_id = DEFAULT_NODE_IDS["VAELoader"]
-            checkpoint_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
-            vaeencode_reference_node = {
-                "class_type": "VAEEncode",
-                "inputs": {
-                    "pixels": [
-                        imageloader_node_id,
-                        0
-                    ],
-                    "vae": [
-                        vae_id if vae_id in params else checkpoint_loader_id,
-                        0 if vae_id in params else 2
-                    ]
-                }
-            }
-            vaeencode_reference_node_id = f"{DEFAULT_NODE_IDS['VAEEncode']}Reference"
-            params.update({
-                vaeencode_reference_node_id: vaeencode_reference_node,
-            })
-            inputs = self.cfg(f"controlnet{unit}_inputs", dict)
-            inputs.update({
-                "ref": [
-                    vaeencode_reference_node_id,
-                    0
-                ],
-                "model": [
-                    last_lora_id if last_lora_id != "" else checkpoint_loader_id,
-                    0
-                ]
-            })
-            preprocessor_node = {
-                "class_type": f"{preprocessor_prefix}Preprocessor",
-                "inputs": inputs
-            }
-            preprocessor_node_id = f"{preprocessor_prefix}+{unit}"
-            params.update({
-                preprocessor_node_id: preprocessor_node
-            })
-            params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
-                preprocessor_node_id, 0
-            ]
-            if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
-                params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [
-                    preprocessor_node_id, 0
-                ]
-            return prev   
+        #     vae_id = DEFAULT_NODE_IDS["VAELoader"]
+        #     checkpoint_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        #     vaeencode_reference_node = {
+        #         "class_type": "VAEEncode",
+        #         "inputs": {
+        #             "pixels": [
+        #                 imageloader_node_id,
+        #                 0
+        #             ],
+        #             "vae": [
+        #                 vae_id if vae_id in params else checkpoint_loader_id,
+        #                 0 if vae_id in params else 2
+        #             ]
+        #         }
+        #     }
+        #     vaeencode_reference_node_id = f"{DEFAULT_NODE_IDS['VAEEncode']}Reference"
+        #     params.update({
+        #         vaeencode_reference_node_id: vaeencode_reference_node,
+        #     })
+        #     inputs = self.cfg(f"controlnet{unit}_inputs", dict)
+        #     inputs.update({
+        #         "ref": [
+        #             vaeencode_reference_node_id,
+        #             0
+        #         ],
+        #         "model": [
+        #             last_lora_id if last_lora_id != "" else checkpoint_loader_id,
+        #             0
+        #         ]
+        #     })
+        #     preprocessor_node = {
+        #         "class_type": f"{preprocessor_prefix}Preprocessor",
+        #         "inputs": inputs
+        #     }
+        #     preprocessor_node_id = f"{preprocessor_prefix}+{unit}"
+        #     params.update({
+        #         preprocessor_node_id: preprocessor_node
+        #     })
+        #     params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
+        #         preprocessor_node_id, 0
+        #     ]
+        #     if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
+        #         params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [
+        #             preprocessor_node_id, 0
+        #         ]
+        #     return prev   
 
         if "Inpaint" in preprocessor_prefix:
             mask_node_id = DEFAULT_NODE_IDS["LoadBase64ImageMask"]
@@ -941,17 +941,47 @@ class Client(QObject):
                 node["inputs"]["image"] = PRUNED_DATA
         self.cfg.set("workflow_img_data", image_data)
         return params
+    
+    def run_custom_workflow(self, workflow, seed, mode, src_img, mask_img = None, controlnet_src_imgs = {}):
+        params = self.restore_params(json.loads(workflow), src_img, mask_img)
+        ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        positive_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_pos"]
+        negative_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_neg"]
+        ksampler_found =  ksampler_id in params
+        positive_prompt_found = positive_prompt_id in params
+        negative_prompt_found = negative_prompt_id in params
 
-    def post_txt2img(self, cb, width, height, controlnet_src_imgs: dict = {}):
+        if ksampler_found:
+            ksampler_inputs = params[ksampler_id]["inputs"]
+            if "seed" in ksampler_inputs:
+                ksampler_inputs["seed"] = seed
+            ksampler_inputs["steps"] = self.cfg(f"{mode}_steps", int)
+            ksampler_inputs["cfg"] = self.cfg(f"{mode}_cfg_scale", float)
+            if "denoise" in ksampler_inputs and mode != "txt2img":
+                ksampler_inputs["denoise"] = self.cfg(f"{mode}_denoising_strength", float)
+            ksampler_inputs["sampler_name"] = self.cfg(f"{mode}_sampler", str)
+            ksampler_inputs["scheduler"] = self.cfg(f"{mode}_scheduler", str)
+
+        if positive_prompt_found:
+            params[positive_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_prompt", str)
+
+        if negative_prompt_found:
+            params[negative_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_negative_prompt", str)
+        
+        if ksampler_found and positive_prompt_found and negative_prompt_found:
+            self.apply_controlnet(params, controlnet_src_imgs)
+        
+        return params
+
+    def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
-        if not self.cfg("just_use_yaml", bool):
-            seed = (
-                # Qt casts int as 32-bit int
-                int(self.cfg("txt2img_seed", str))
-                if not self.cfg("txt2img_seed", str).strip() == ""
-                else randint(0, 18446744073709552000)
-            )
-
+        seed = (
+            # Qt casts int as 32-bit int
+            int(self.cfg("txt2img_seed", str))
+            if not self.cfg("txt2img_seed", str).strip() == ""
+            else randint(0, 18446744073709552000)
+        )
+        if not self.cfg("txt2img_custom_workflow", bool):
             resized_width, resized_height = width, height
             disable_base_and_max_size = self.cfg(
                 "disable_sddebz_highres", bool)
@@ -1039,6 +1069,9 @@ class Client(QObject):
 
             self.loadLoRAs(params, "txt2img")
             self.apply_controlnet(params, controlnet_src_imgs)
+        else:
+            workflow = self.cfg("txt2img_workflow", str)
+            params = self.run_custom_workflow(workflow, seed, "txt2img", src_img, None, controlnet_src_imgs)
 
         if cb is None:
             return self.get_workflow(params, "txt2img")
@@ -1047,13 +1080,13 @@ class Client(QObject):
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
-        if not self.cfg("just_use_yaml", bool):
-            seed = (
-                # Qt casts int as 32-bit int
-                int(self.cfg("img2img_seed", str))
-                if not self.cfg("img2img_seed", str).strip() == ""
-                else randint(0, 18446744073709552000)
-            )
+        seed = (
+            # Qt casts int as 32-bit int
+            int(self.cfg("img2img_seed", str))
+            if not self.cfg("img2img_seed", str).strip() == ""
+            else randint(0, 18446744073709552000)
+        )
+        if not self.cfg("img2img_custom_workflow", bool):
             resized_width, resized_height = width, height
             disable_base_and_max_size = self.cfg(
                 "disable_sddebz_highres", bool)
@@ -1153,6 +1186,10 @@ class Client(QObject):
             
             self.loadLoRAs(params, "img2img")
             self.apply_controlnet(params, controlnet_src_imgs)
+        else:
+            params = self.run_custom_workflow(
+                self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, controlnet_src_imgs
+            )
 
         if cb is None:
             return self.get_workflow(params, "img2img")
@@ -1162,14 +1199,14 @@ class Client(QObject):
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
         assert mask_img, "Inpaint layer is needed for inpainting!"
-        preserve = self.cfg("inpaint_fill", str) == "preserve"
-        if not self.cfg("just_use_yaml", bool):
-            seed = (
-                # Qt casts int as 32-bit int
-                int(self.cfg("inpaint_seed", str))
-                if not self.cfg("inpaint_seed", str).strip() == ""
-                else randint(0, 18446744073709552000)
-            )
+        seed = (
+            # Qt casts int as 32-bit int
+            int(self.cfg("inpaint_seed", str))
+            if not self.cfg("inpaint_seed", str).strip() == ""
+            else randint(0, 18446744073709552000)
+        )
+        if not self.cfg("inpaint_custom_workflow", bool):
+            preserve = self.cfg("inpaint_fill", str) == "preserve"
             resized_width, resized_height = width, height
             disable_base_and_max_size = self.cfg(
                 "disable_sddebz_highres", bool)
@@ -1350,6 +1387,9 @@ class Client(QObject):
                 ]
             self.loadLoRAs(params, "inpaint")
             self.apply_controlnet(params, controlnet_src_imgs)
+        else:
+            params = self.run_custom_workflow(self.cfg("inpaint_workflow", str), seed,
+                                     "inpaint", src_img, mask_img, controlnet_src_imgs)
 
         if cb is None:
             return self.get_workflow(params, "inpaint")
@@ -1358,99 +1398,101 @@ class Client(QObject):
 
     def post_upscale(self, cb, src_img):
         params = {}
+        if not self.cfg("upscale_custom_workflow", bool):
+            def upscale_latent():
+                imagescale_node = {
+                    "class_type": "ImageScaleBy",
+                    "inputs": {
+                        "upscale_method": self.cfg("upscale_upscaler_name", str),
+                        "scale_by": self.cfg("upscale_upscale_by", float),
+                        "image": [
+                            DEFAULT_NODE_IDS["LoadBase64Image"],
+                            0
+                        ]
+                    }
+                }
+                saveimage_node = {
+                    "class_type": "SaveImage",
+                    "inputs": {
+                        "filename_prefix": "ComfyUI",
+                        "images": [
+                            DEFAULT_NODE_IDS["ImageScaleBy"],
+                            0
+                        ]
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["ImageScaleBy"]: imagescale_node,
+                    DEFAULT_NODE_IDS["SaveImage"]: saveimage_node
+                })
 
-        def upscale_latent():
-            imagescale_node = {
-                "class_type": "ImageScaleBy",
-                "inputs": {
-                    "upscale_method": self.cfg("upscale_upscaler_name", str),
-                    "scale_by": self.cfg("upscale_upscale_by", float),
-                    "image": [
-                        DEFAULT_NODE_IDS["LoadBase64Image"],
-                        0
-                    ]
+            def upscale_with_model():
+                upscalemodelloader_node = {
+                    "class_type": "UpscaleModelLoader",
+                    "inputs": {
+                        "model_name": self.cfg("upscale_upscaler_name", str)
+                    }
                 }
-            }
-            saveimage_node = {
-                "class_type": "SaveImage",
-                "inputs": {
-                    "filename_prefix": "ComfyUI",
-                    "images": [
-                        DEFAULT_NODE_IDS["ImageScaleBy"],
-                        0
-                    ]
+                imageupscalewithmodel_node = {
+                    "class_type": "ImageUpscaleWithModel",
+                    "inputs": {
+                        "upscale_model": [
+                            DEFAULT_NODE_IDS["UpscaleModelLoader"],
+                            0
+                        ],
+                        "image": [
+                            DEFAULT_NODE_IDS["LoadBase64Image"],
+                            0
+                        ]
+                    }
                 }
-            }
-            params.update({
-                DEFAULT_NODE_IDS["ImageScaleBy"]: imagescale_node,
-                DEFAULT_NODE_IDS["SaveImage"]: saveimage_node
-            })
+                imagescale_node = {
+                    "class_type": "ImageScale",
+                    "inputs": {
+                        "upscale_method": "bilinear",
+                        "width": src_img.width() * self.cfg("upscale_upscale_by", float),
+                        "height": src_img.height() * self.cfg("upscale_upscale_by", float),
+                        "crop": "disabled",
+                        "image": [
+                            DEFAULT_NODE_IDS["ImageUpscaleWithModel"],
+                            0
+                        ]
+                    }
+                }
+                saveimage_node = {
+                    "class_type": "SaveImage",
+                    "inputs": {
+                        "filename_prefix": "ComfyUI",
+                        "images": [
+                            DEFAULT_NODE_IDS["ImageScale"],
+                            0
+                        ]
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
+                    DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
+                    DEFAULT_NODE_IDS["ImageScale"]: imagescale_node,
+                    DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
+                })
 
-        def upscale_with_model():
-            upscalemodelloader_node = {
-                "class_type": "UpscaleModelLoader",
+            loadimage_node = {
+                "class_type": "LoadBase64Image",
                 "inputs": {
-                    "model_name": self.cfg("upscale_upscaler_name", str)
+                    "image": img_to_b64(src_img)
                 }
             }
-            imageupscalewithmodel_node = {
-                "class_type": "ImageUpscaleWithModel",
-                "inputs": {
-                    "upscale_model": [
-                        DEFAULT_NODE_IDS["UpscaleModelLoader"],
-                        0
-                    ],
-                    "image": [
-                        DEFAULT_NODE_IDS["LoadBase64Image"],
-                        0
-                    ]
-                }
-            }
-            imagescale_node = {
-                "class_type": "ImageScale",
-                "inputs": {
-                    "upscale_method": "bilinear",
-                    "width": src_img.width() * self.cfg("upscale_upscale_by", float),
-                    "height": src_img.height() * self.cfg("upscale_upscale_by", float),
-                    "crop": "disabled",
-                    "image": [
-                        DEFAULT_NODE_IDS["ImageUpscaleWithModel"],
-                        0
-                    ]
-                }
-            }
-            saveimage_node = {
-                "class_type": "SaveImage",
-                "inputs": {
-                    "filename_prefix": "ComfyUI",
-                    "images": [
-                        DEFAULT_NODE_IDS["ImageScale"],
-                        0
-                    ]
-                }
-            }
-            params.update({
-                DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
-                DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
-                DEFAULT_NODE_IDS["ImageScale"]: imagescale_node,
-                DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
-            })
 
-        loadimage_node = {
-            "class_type": "LoadBase64Image",
-            "inputs": {
-                "image": img_to_b64(src_img)
+            params = {
+                DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node
             }
-        }
 
-        params = {
-            DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node
-        }
-
-        if self.cfg("upscale_upscaler_name", str) in self.cfg("upscaler_model_list", "QStringList"):
-            upscale_with_model()
+            if self.cfg("upscale_upscaler_name", str) in self.cfg("upscaler_model_list", "QStringList"):
+                upscale_with_model()
+            else:
+                upscale_latent()
         else:
-            upscale_latent()
+            params = self.run_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img, None, None)
 
         if cb is None:
             return self.get_workflow(params, "upscale")
@@ -1502,8 +1544,10 @@ class Client(QObject):
 
         self.get_images(params, cb)
 
-    def run_workflow(self, workflow, src_img, mask, cb=None):
-        params = json.loads(workflow)
+    def restore_params(self, params, src_img, mask=None):
+        if mask == None:
+            mask = src_img
+
         mode = self.cfg("workflow_to", str)
         workflow_image_data = self.cfg("workflow_img_data", dict)[mode]
         for node_id, node in params.items():
@@ -1517,6 +1561,10 @@ class Client(QObject):
                         node["inputs"][input_key] = img_to_b64(src_img)
                     elif input_value == CURRENT_LAYER_AS_MASK:
                         node["inputs"][input_key] = img_to_b64(mask)
+        return params
+
+    def run_workflow(self, workflow, src_img, mask, cb=None):
+        params = self.restore_params(json.loads(workflow), src_img, mask)
         self.get_images(params, cb)
 
     def post_interrupt(self, cb):
