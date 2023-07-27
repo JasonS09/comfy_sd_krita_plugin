@@ -38,6 +38,9 @@ class WorkflowPage(QWidget):
         # Open the json file and read its contents
         with open(filename, "r") as f:
             data = json.load(f)
+
+        if "prompt" in data.keys():
+            data = data["prompt"]
         # Convert the data to a string
         text = json.dumps((data), indent=4)
         # Set the text of the workflow editor
@@ -63,7 +66,11 @@ class WorkflowPage(QWidget):
     def cfg_connect(self):
         self.workflow_to.cfg_connect()
         self.import_workflow.released.connect(self.on_import_workflow_release)
+        self.run_this_workflow.released.connect(
+            lambda: script.action_run_workflow(script.cfg(f"{self.prefix}_workflow", str))
+        )
         self.workflow.textChanged.connect(
             lambda: script.cfg.set(f"{self.prefix}_workflow", self.workflow.toPlainText())
         )
         self.workflow_to.qcombo.editTextChanged.connect(self.update_prefix)
+        script.status_changed.connect(lambda s: self.status_bar.set_status(s))

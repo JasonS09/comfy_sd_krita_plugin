@@ -28,7 +28,10 @@ from .defaults import (
     STATE_READY,
     STATE_URLERROR,
     THREADED,
-    DEFAULT_NODE_IDS
+    DEFAULT_NODE_IDS,
+    PRUNED_DATA,
+    SELECTED_IMAGE,
+    CURRENT_LAYER_AS_MASK
 )
 from .utils import (
     bytewise_xor,
@@ -405,7 +408,7 @@ class Client(QObject):
                 0
             ]
 
-        if self.cfg("sd_vae", str) != "Normal"  \
+        if self.cfg("sd_vae", str) != "None"  \
                 and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
             loadVAE()
 
@@ -660,6 +663,7 @@ class Client(QObject):
             
             if prev != "":
                 params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["positive"] = [prev, 0]
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["negative"] = [prev, 1]
 
     def controlnet_unit_params(self, params, image: str, unit: int, prev = ""):
         '''Call only when base prompt structure is already stored in params,
@@ -671,10 +675,10 @@ class Client(QObject):
         num_imageloader_nodes = 0
         for key, value in params.items():
             if key.startswith(imageloader_prefix):
-                num_imageloader_nodes += 1
-                if value["inputs"]["image"][0] == image:
+                if value["inputs"]["image"] == image:
                     image_node_exists = True
                     break
+                num_imageloader_nodes += 1
 
         imageloader_node_id = f"{imageloader_prefix}+{num_imageloader_nodes}"
 
@@ -753,10 +757,10 @@ class Client(QObject):
         num_controlnetloader_nodes = 0
         for key, value in params.items():
             if key.startswith(controlnetloader_prefix):
-                num_controlnetloader_nodes += 1
-                if value["inputs"]["control_net_name"][0] == self.cfg(f"controlnet{unit}_model", str):
+                if value["inputs"]["control_net_name"] == self.cfg(f"controlnet{unit}_model", str):
                     model_node_exists = True
                     break
+                num_controlnetloader_nodes += 1
 
         controlnetloader_node_id = f"{controlnetloader_prefix}+{num_controlnetloader_nodes}"
         if not model_node_exists:
@@ -834,17 +838,21 @@ class Client(QObject):
                 print("Invalid Response:\n", obj)
                 return
 
-        def on_get_upscalers(obj):  # Can only get latent upscalers for now.
+        def on_get_upscalers(obj):
             try:
-                check_response(obj)
+                check_response(obj, ["LatentUpscale"])
             except:
                 return
-            if obj["LatentUpscale"]:
-                node = obj["LatentUpscale"]["input"]["required"]
-                self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
-            elif obj["UpscaleModelLoader"]:
-                node = obj["UpscaleModelLoader"]["input"]["required"]
-                self.cfg.set("upscaler_model_list", node["model_name"][0])
+            node = obj["LatentUpscale"]["input"]["required"]
+            self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
+
+        def on_get_upscaler_models(obj):
+            try:
+                check_response(obj, ["UpscaleModelLoader"])
+            except:
+                return
+            node = obj["UpscaleModelLoader"]["input"]["required"]
+            self.cfg.set("upscaler_model_list", node["model_name"][0])
 
         def on_get_sampler_data(obj):
             try:
@@ -878,15 +886,15 @@ class Client(QObject):
             node = obj["VAELoader"]["input"]["required"]
             self.cfg.set("sd_vae_list", ["None"] + node["vae_name"][0])
 
-        self.get(f"/object_info/LatentUpscale",
+        self.get("/object_info/LatentUpscale",
                  on_get_upscalers, ignore_no_connection=True)
-        self.get(f"/object_info/KSampler", on_get_sampler_data,
-                 ignore_no_connection=True)
-        self.get(f"/object_info/CheckpointLoaderSimple",
+        self.get("/object_info/KSampler", on_get_sampler_data,
+                ignore_no_connection=True)
+        self.get("/object_info/CheckpointLoaderSimple",
                  on_get_models, ignore_no_connection=True)
-        self.get(f"/object_info/UpscaleModelLoader",
-                 on_get_upscalers, ignore_no_connection=True)
-        self.get(f"/object_info/VAELoader",
+        self.get("/object_info/UpscaleModelLoader",
+                 on_get_upscaler_models, ignore_no_connection=True)
+        self.get("/object_info/VAELoader",
                  on_get_VAE, ignore_no_connection=True)
 
     def get_controlnet_config(self):
@@ -921,6 +929,18 @@ class Client(QObject):
 
         self.get("object_info/ControlNetLoader", set_model_list)
         self.get("object_info", set_preprocessor_list)
+
+    def get_workflow(self, params, mode):
+        image_data = {mode: {}}
+        for id, node in params.items():
+            if node["class_type"] in ["LoadBase64Image", "LoadBase64ImageMask"]:
+                image_data[mode][id] = {}
+                image_data[mode][id].update({
+                    "image": node["inputs"]["image"],
+                })
+                node["inputs"]["image"] = PRUNED_DATA
+        self.cfg.set("workflow_img_data", image_data)
+        return params
 
     def post_txt2img(self, cb, width, height, controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
@@ -1019,6 +1039,10 @@ class Client(QObject):
 
             self.loadLoRAs(params, "txt2img")
             self.apply_controlnet(params, controlnet_src_imgs)
+
+        if cb is None:
+            return self.get_workflow(params, "txt2img")
+        
         self.get_images(params, cb)
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
@@ -1129,6 +1153,10 @@ class Client(QObject):
             
             self.loadLoRAs(params, "img2img")
             self.apply_controlnet(params, controlnet_src_imgs)
+
+        if cb is None:
+            return self.get_workflow(params, "img2img")
+        
         self.get_images(params, cb)
 
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
@@ -1322,6 +1350,10 @@ class Client(QObject):
                 ]
             self.loadLoRAs(params, "inpaint")
             self.apply_controlnet(params, controlnet_src_imgs)
+
+        if cb is None:
+            return self.get_workflow(params, "inpaint")
+
         self.get_images(params, cb)
 
     def post_upscale(self, cb, src_img):
@@ -1420,6 +1452,9 @@ class Client(QObject):
         else:
             upscale_latent()
 
+        if cb is None:
+            return self.get_workflow(params, "upscale")
+
         self.get_images(params, cb)
 
     def post_controlnet_preview(self, cb, src_img):
@@ -1465,6 +1500,23 @@ class Client(QObject):
             DEFAULT_NODE_IDS['SaveImage']: saveimage_node
         }
 
+        self.get_images(params, cb)
+
+    def run_workflow(self, workflow, src_img, mask, cb=None):
+        params = json.loads(workflow)
+        mode = self.cfg("workflow_to", str)
+        workflow_image_data = self.cfg("workflow_img_data", dict)[mode]
+        for node_id, node in params.items():
+            if node["class_type"] in ["LoadBase64Image", "LoadBase64ImageMask"]:
+                for input_key, input_value in node["inputs"].items():
+                    if input_value == PRUNED_DATA and node_id in workflow_image_data:
+                        image_data = workflow_image_data[node_id]
+                        node["inputs"][input_key] = image_data[input_key]
+                    elif input_value == SELECTED_IMAGE:
+                        # Replace the placeholder with the actual image data
+                        node["inputs"][input_key] = img_to_b64(src_img)
+                    elif input_value == CURRENT_LAYER_AS_MASK:
+                        node["inputs"][input_key] = img_to_b64(mask)
         self.get_images(params, cb)
 
     def post_interrupt(self, cb):

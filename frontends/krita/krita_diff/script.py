@@ -1,6 +1,7 @@
 import itertools
 import os
 import time
+import json
 
 from krita import (
     Document,
@@ -450,6 +451,73 @@ class Script(QObject):
 
         self.client.post_upscale(cb, sel_image)
 
+    def apply_get_workflow(self, mode):
+        params = {}
+        sel_image = self.get_selection_image() if mode != "inpaint" else None
+        controlnet_input_images = self.get_controlnet_input_images(sel_image)
+        if mode == "txt2img":
+            params = self.client.post_txt2img(
+                None, self.width, self.height, controlnet_input_images
+            )
+        if mode == "img2img":
+            params = self.client.post_img2img(
+                None, sel_image, self.width, self.height, controlnet_input_images
+            )
+        if mode == "inpaint":
+            mask_image, transparency_mask = self.get_mask_image()
+            self.node.setVisible(False)
+            self.doc.refreshProjection()
+            sel_image = self.get_selection_image()
+            self.node.setVisible(True)
+            self.doc.refreshProjection()           
+            params = self.client.post_inpaint(
+                None, sel_image, mask_image, self.width, self.height, controlnet_input_images
+            )
+        if mode == "upscale":
+            params = self.client.post_upscale(None, sel_image)
+        return json.dumps(params, indent=4)
+    
+    def apply_run_workflow(self, workflow):
+        # freeze selection region
+        is_inpaint = self.cfg("workflow_to", str) == "inpaint"
+        glayer = self.doc.createGroupLayer("Unnamed Group")
+        self.doc.rootNode().addChildNode(glayer, None)
+        insert = self.img_inserter(
+            self.x, self.y, self.width, self.height, False, glayer
+        )
+        if not is_inpaint:
+            mask_trigger = self.transparency_mask_inserter()
+
+        def cb(response):
+            assert response is not None
+            outputs = response["outputs"]
+            glayer_name, layer_names = get_desc_from_resp(response, "workflow")
+            layers = [
+                insert(name if name else f"workflow {i + 1}", output)
+                for output, name, i in zip(outputs, layer_names, itertools.count())
+            ]
+            if self.cfg("hide_layers", bool):
+                for layer in layers[:-1]:
+                    layer.setVisible(False)
+            if glayer:
+                glayer.setName(glayer_name)
+            self.doc.refreshProjection()
+            if not is_inpaint:
+                mask_trigger(layers)
+
+            self.client.images_received.disconnect(cb)
+        
+        if is_inpaint:
+            mask_image, transparency_mask = self.get_mask_image()
+            self.node.setVisible(False)
+            self.doc.refreshProjection()
+            sel_image = self.get_selection_image()
+            self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
+        else:
+            mask_image = sel_image = self.get_selection_image()
+
+        self.client.run_workflow(workflow, sel_image, mask_image, cb)
+
     def transparency_mask_inserter(self):
         """Mask out extra regions due to adjust_selection()."""
         orig_selection = self.selection.duplicate() if self.selection else None
@@ -558,6 +626,13 @@ class Script(QObject):
         self.adjust_selection()
         self.apply_controlnet_preview_annotator()
 
+    def action_run_workflow(self, workflow):
+        self.status_changed.emit(STATE_WAIT)
+        self.update_selection()
+        if not self.doc:
+            return
+        self.adjust_selection()
+        self.apply_run_workflow(workflow)
             
     def action_update_controlnet_config(self):
         """Update controlnet config from the backend."""
@@ -577,6 +652,12 @@ class Script(QObject):
             self.status_changed.emit(STATE_INTERRUPT)
 
         self.client.post_interrupt(cb)
+
+    def action_get_workflow(self, mode):
+        self.update_selection()
+        if not self.doc:
+            return
+        return self.apply_get_workflow(mode)
 
     def action_update_eta(self):
         self.client.check_progress(self.progress_update.emit)

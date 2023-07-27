@@ -3,7 +3,15 @@ import re
 from itertools import cycle
 from math import ceil
 
-from krita import Krita, QBuffer, QByteArray, QImage, QIODevice, Qt
+from krita import (
+    Krita, 
+    QBuffer, 
+    QByteArray, 
+    QImage, 
+    QIODevice, 
+    Qt,
+    QLayout
+)
 
 from .config import Config
 from .defaults import (
@@ -17,7 +25,6 @@ from .defaults import (
     TAB_CONTROLNET,
     TAB_WORKFLOW
 )
-
 
 def fix_prompt(prompt: str):
     """Replace empty prompts with None."""
@@ -215,7 +222,7 @@ Steps: {info['steps']}"""
     except:
         return f"[{type}]", cycle([None])
 
-def clear_layout(layout):
+def clear_layout(layout: QLayout):
     if layout is not None:
         while layout.count():
             item = layout.takeAt(0)
@@ -225,6 +232,17 @@ def clear_layout(layout):
             else:
                 clear_layout(item.layout())
                 layout.removeItem(item.layout())
+
+def get_workflow(ext_cfg: Config, get_workflow_func, mode: str):
+    workflow = get_workflow_func(mode)
+    ext_cfg.set(f"{mode}_workflow", workflow)
+    ext_cfg.set("workflow_to", mode)
+    dockers = Krita.instance().dockers()
+    for d in dockers:
+        if d.objectName() == TAB_WORKFLOW:
+            d.page_widget.cfg_init()
+            d.raise_()
+            break
 
 def reset_docker_layout():
     """NOTE: Default stacking of dockers hardcoded here."""

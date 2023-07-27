@@ -3,7 +3,7 @@ from krita import QHBoxLayout, QPushButton
 from ..script import script
 from ..widgets import TipsLayout
 from .img_base import SDImgPageBase
-
+from ..utils import get_workflow
 
 class Txt2ImgPage(SDImgPageBase):
     name = "Txt2Img"
@@ -20,9 +20,11 @@ class Txt2ImgPage(SDImgPageBase):
         )
 
         self.btn = QPushButton("Start txt2img")
+        self.get_workflow_btn = QPushButton("Get workflow")
 
         self.layout.addLayout(inline_layout)
         self.layout.addWidget(self.btn)
+        self.layout.addWidget(self.get_workflow_btn)
         self.layout.addLayout(self.tips)
         self.layout.addStretch()
 
@@ -41,3 +43,6 @@ class Txt2ImgPage(SDImgPageBase):
         toggle_highres(not script.cfg("disable_sddebz_highres", bool))
 
         self.btn.released.connect(lambda: script.action_txt2img())
+        self.get_workflow_btn.released.connect(
+            lambda: get_workflow(script.cfg, script.action_get_workflow, "txt2img")
+        )

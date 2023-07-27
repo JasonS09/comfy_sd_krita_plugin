@@ -43,7 +43,6 @@ TAB_INPAINT = "krita_diff_inpaint"
 TAB_UPSCALE = "krita_diff_upscale"
 TAB_WORKFLOW = "krita_diff_workflow"
 TAB_CONTROLNET = "krita_diff_controlnet"
-TAB_CONTROLNET = "krita_diff_controlnet"
 TAB_PREVIEW = "krita_diff_preview"
 
 # Nodes
@@ -87,6 +86,11 @@ DEFAULT_NODE_IDS = {
     "ControlNetImageLoader": "ControlNetImageLoader",
     "ControlNetApplyAdvanced": "ControlNetApplyAdvanced"
 }
+
+# Workflow data placeholders
+PRUNED_DATA = "<<PrunedImageData>>"
+SELECTED_IMAGE = "<<SelectedImage>>"
+CURRENT_LAYER_AS_MASK = "<<CurrentLayerAsMask>>"
 
 @dataclass(frozen=True)
 class Defaults:
@@ -182,6 +186,7 @@ class Defaults:
     workflow_to_list: List[str] = field(default_factory=lambda: ["none", "txt2img", "img2img", "inpaint", "upscale"])
     workflow_to: str = "none"
     none_workflow: str = ""
+    workflow_img_data: Dict[str, object] = field(default_factory=lambda: {})
 
     controlnet_unit: str = "0"
     controlnet_unit_list: List[str] = field(default_factory=lambda: list(str(i) for i in range(10)))
