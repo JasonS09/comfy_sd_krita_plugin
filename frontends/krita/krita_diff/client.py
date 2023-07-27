@@ -202,7 +202,7 @@ class Client(QObject):
             # self.status.emit(str(e))
             assert False, e
 
-    def on_images_received(self, status, prompt_id):
+    def receive_images(self, status, prompt_id=None, skip_status_check=False):
         def craft_response(images, history, names):
             try:
                 return {
@@ -220,7 +220,6 @@ class Client(QObject):
             except KeyError:
                 return {
                     "info": {},
-                    # Assuming it's the result of a simple upscale.
                     "outputs": images
                 }
 
@@ -234,8 +233,7 @@ class Client(QObject):
                 images_output.append(img_to_b64(qimage))
 
             assert history_res is not None, "Backend Error, check terminal"
-
-            history = history_res[prompt_id]
+            history = history_res[prompt_id] if prompt_id is not None else history_res[list(history_res.keys())[-1]]
             names = []
             i = 0
             for node_id in history['outputs']:
@@ -259,9 +257,10 @@ class Client(QObject):
                 timer.timeout.connect(check_if_populated)
                 timer.start(0.05)
 
-        if status == STATE_DONE:
+        if status == STATE_DONE or skip_status_check:
             # Prevent undesired executions of this function.
-            self.status.disconnect(self.conn)
+            if status == STATE_DONE:
+                self.status.disconnect(self.conn)
             self.get_history(prompt_id, on_history_received)
 
     def queue_prompt(self, prompt, cb=None):
@@ -273,8 +272,11 @@ class Client(QObject):
                 "subfolder": subfolder, "type": folder_type}
         self.get("view", cb, data=data)
 
-    def get_history(self, prompt_id, cb=None):
-        self.get(f"history/{prompt_id}", cb)
+    def get_history(self, prompt_id=None, cb=None):
+        if prompt_id is not None:
+            self.get(f"history/{prompt_id}", cb)
+        else:
+            self.get(f"history", cb)
 
     def check_progress(self, cb):
         def on_progress_checked(res):
@@ -291,7 +293,7 @@ class Client(QObject):
             assert prompt_res is not None, "Backend Error, check terminal"
             self.prompt_sent.emit()
             prompt_id = prompt_res['prompt_id']
-            self.conn = lambda s: self.on_images_received(s, prompt_id)
+            self.conn = lambda s: self.receive_images(s, prompt_id)
             self.status.connect(self.conn)
 
         self.queue_prompt(prompt, on_prompt_received)
@@ -1492,7 +1494,7 @@ class Client(QObject):
             else:
                 upscale_latent()
         else:
-            params = self.run_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img, None, None)
+            params = self.run_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img)
 
         if cb is None:
             return self.get_workflow(params, "upscale")

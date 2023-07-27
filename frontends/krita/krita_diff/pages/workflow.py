@@ -24,12 +24,14 @@ class WorkflowPage(QWidget):
         )
         self.workflow = QPromptEdit("", 20)
         self.run_this_workflow = QPushButton("Run This Workflow")
+        self.import_images = QPushButton("Import Last Generated Images")
         layout = QVBoxLayout()
         layout.addWidget(self.status_bar)
         layout.addWidget(self.import_workflow)
         layout.addLayout(self.workflow_to)
         layout.addWidget(self.workflow)
         layout.addWidget(self.run_this_workflow)
+        layout.addWidget(self.import_images)
         self.setLayout(layout)
 
         self.prefix = script.cfg.get("workflow_to", str)
@@ -66,6 +68,7 @@ class WorkflowPage(QWidget):
     def cfg_connect(self):
         self.workflow_to.cfg_connect()
         self.import_workflow.released.connect(self.on_import_workflow_release)
+        self.import_images.released.connect(script.action_get_last_images)
         self.run_this_workflow.released.connect(
             lambda: script.action_run_workflow(script.cfg(f"{self.prefix}_workflow", str))
         )

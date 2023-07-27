@@ -198,7 +198,7 @@ class Script(QObject):
 
         return mask.rgbSwapped(), transparency_mask.rgbSwapped()
 
-    def img_inserter(self, x, y, width, height, inpaint=False, glayer=None):
+    def img_inserter(self, x, y, width, height, inpaint=False, glayer=None, skip_check_pixel_data=False):
         """Return frozen image inserter to insert images as new layer."""
         # Selection may change before callback, so freeze selection region
         has_selection = self.selection is not None
@@ -227,8 +227,6 @@ class Script(QObject):
                 f"image created: {image}, {image.width()}x{image.height()}, depth: {image.depth()}, format: {image.format()}"
             )
 
-            # NOTE: Scaling must be done by the frontend when using the official API.
-            # The scaling here is for SD Upscale, Upscale on a selection region, or inpainting.
             # Image won't be scaled down ONLY if there is no selection; i.e. selecting whole image will scale down,
             # not selecting anything won't scale down, leading to the canvas being resized afterwards
             if (has_selection or inpaint) and (image.width() != width or image.height() != height):
@@ -256,9 +254,10 @@ class Script(QObject):
             # layer.setColorSpace() doesn't pernamently convert layer depth etc...
 
             # Don't fail silently for setPixelData(); fails if bit depth or number of channels mismatch
-            size = ba.size()
-            expected = layer.pixelData(x, y, width, height).size()
-            assert expected == size, f"Raw data size: {size}, Expected size: {expected}"
+            if not skip_check_pixel_data:
+                size = ba.size()
+                expected = layer.pixelData(x, y, width, height).size()
+                assert expected == size, f"Raw data size: {size}, Expected size: {expected}"
 
             print(f"inserting at x: {x}, y: {y}, w: {width}, h: {height}")
             layer.setPixelData(ba, x, y, width, height)
@@ -267,6 +266,50 @@ class Script(QObject):
             return layer
 
         return insert
+    
+    def basic_callback_crafter(self, mode):
+        is_inpaint = mode == "inpaint"
+
+        glayer = self.doc.createGroupLayer("Unnamed Group")
+        self.doc.rootNode().addChildNode(glayer, None)
+
+        insert = self.img_inserter(
+            self.x, self.y, self.width, self.height, False, glayer, mode == "receive"
+        )
+        if not is_inpaint:
+            mask_trigger = self.transparency_mask_inserter()
+
+        def cb(response):
+            assert response is not None
+            outputs = response["outputs"]
+
+            # if is_upscale:
+            #     insert(f"upscale", outputs[0])
+            #     self.doc.refreshProjection()
+            # else:
+            glayer_name, layer_names = get_desc_from_resp(response, mode)
+            try:
+                layers = [
+                    insert(name if name else f"{mode} {i + 1}", output)
+                    for output, name, i in zip(outputs, layer_names, itertools.count())
+                ]
+            except:
+                self.client.images_received.disconnect(cb)
+
+            if self.cfg("hide_layers", bool):
+                for layer in layers[:-1]:
+                    layer.setVisible(False)
+
+            if glayer:
+                glayer.setName(glayer_name)
+            self.doc.refreshProjection()
+
+            if not is_inpaint:
+                mask_trigger(layers)
+
+            self.client.images_received.disconnect(cb)
+        
+        return cb, glayer
     
     def check_controlnet_enabled(self):
         for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
@@ -286,31 +329,7 @@ class Script(QObject):
         return input_images
 
     def apply_txt2img(self):
-        # freeze selection region
-        glayer = self.doc.createGroupLayer("Unnamed Group")
-        self.doc.rootNode().addChildNode(glayer, None)
-        insert = self.img_inserter(
-            self.x, self.y, self.width, self.height, False, glayer
-        )
-        mask_trigger = self.transparency_mask_inserter()
-
-        def cb(response):
-            assert response is not None
-            outputs = response["outputs"]
-            glayer_name, layer_names = get_desc_from_resp(response, "txt2img")
-            layers = [
-                insert(name if name else f"txt2img {i + 1}", output)
-                for output, name, i in zip(outputs, layer_names, itertools.count())
-            ]
-            if self.cfg("hide_layers", bool):
-                for layer in layers[:-1]:
-                    layer.setVisible(False)
-            if glayer:
-                glayer.setName(glayer_name)
-            self.doc.refreshProjection()
-            mask_trigger(layers)
-
-            self.client.images_received.disconnect(cb)
+        cb, glayer = self.basic_callback_crafter("txt2img")
 
         sel_image = self.get_selection_image()
         self.client.post_txt2img(
@@ -319,51 +338,18 @@ class Script(QObject):
         )
 
     def apply_img2img(self, is_inpaint):
-        mask_trigger = self.transparency_mask_inserter()
-        mask_image, transparency_mask = self.get_mask_image() if is_inpaint else (None, None)
-        glayer = self.doc.createGroupLayer("Unnamed Group")
-        self.doc.rootNode().addChildNode(glayer, None)
-        insert = self.img_inserter(
-            self.x, self.y, self.width, self.height, is_inpaint, glayer
-        )
+        cb, glayer = self.basic_callback_crafter("img2img") if not is_inpaint else \
+            self.basic_callback_crafter("inpaint")
 
-        path = os.path.join(self.cfg("sample_path", str), f"{int(time.time())}.png")
-        mask_path = os.path.join(
-            self.cfg("sample_path", str), f"{int(time.time())}_mask.png"
-        )
+        mask_image, transparency_mask = self.get_mask_image() if is_inpaint else (None, None)
+
         if is_inpaint and mask_image is not None:
-            if self.cfg("save_temp_images", bool):
-                save_img(mask_image, mask_path)
             # auto-hide mask layer before getting selection image
             self.node.setVisible(False)
             self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
             self.doc.refreshProjection()
 
         sel_image = self.get_selection_image()
-        if self.cfg("save_temp_images", bool):
-            save_img(sel_image, path)
-
-        def cb(response):
-            assert response is not None, "Backend Error, check terminal"
-            outputs = response["outputs"]
-            layer_name_prefix = "inpaint" if is_inpaint else "img2img"
-            glayer_name, layer_names = get_desc_from_resp(response, layer_name_prefix)
-            layers = [
-                insert(name if name else f"{layer_name_prefix} {i + 1}", output)
-                for output, name, i in zip(outputs, layer_names, itertools.count())
-            ]
-            if self.cfg("hide_layers", bool):
-                for layer in layers[:-1]:
-                    layer.setVisible(False)
-            if glayer:
-                glayer.setName(glayer_name)
-            self.doc.refreshProjection()
-
-            # dont need transparency mask for inpaint mode
-            if not is_inpaint:
-                mask_trigger(layers)
-
-            self.client.images_received.disconnect(cb)
 
         if is_inpaint:
             self.client.post_inpaint(
@@ -466,11 +452,14 @@ class Script(QObject):
             )
         if mode == "inpaint":
             mask_image, transparency_mask = self.get_mask_image()
-            self.node.setVisible(False)
-            self.doc.refreshProjection()
-            sel_image = self.get_selection_image()
-            self.node.setVisible(True)
-            self.doc.refreshProjection()           
+            if self.node.visible():
+                self.node.setVisible(False)
+                self.doc.refreshProjection()
+                sel_image = self.get_selection_image()
+                self.node.setVisible(True)
+                self.doc.refreshProjection()
+            else:
+                sel_image = self.get_selection_image()
             params = self.client.post_inpaint(
                 None, sel_image, mask_image, self.width, self.height, controlnet_input_images
             )
@@ -480,43 +469,11 @@ class Script(QObject):
     
     def apply_run_workflow(self, workflow):
         # freeze selection region
-        is_inpaint = self.cfg("workflow_to", str) == "inpaint"
-        is_upscale = self.cfg("workflow_to", str) == "upscale"
-        glayer = None
+        mode = self.cfg("workflow_to", str)
+        is_inpaint = mode == "inpaint"
+        #is_upscale = self.cfg("workflow_to", str) == "upscale"
 
-        if not is_upscale:
-            glayer = self.doc.createGroupLayer("Unnamed Group")
-            self.doc.rootNode().addChildNode(glayer, None)
-
-        insert = self.img_inserter(
-            self.x, self.y, self.width, self.height, False, glayer
-        )
-        if not is_inpaint:
-            mask_trigger = self.transparency_mask_inserter()
-
-        def cb(response):
-            assert response is not None
-            outputs = response["outputs"]
-
-            if is_upscale:
-                insert(f"upscale", outputs[0])
-                self.doc.refreshProjection()
-            else:
-                glayer_name, layer_names = get_desc_from_resp(response, "workflow")
-                layers = [
-                    insert(name if name else f"workflow {i + 1}", output)
-                    for output, name, i in zip(outputs, layer_names, itertools.count())
-                ]
-                if self.cfg("hide_layers", bool):
-                    for layer in layers[:-1]:
-                        layer.setVisible(False)
-                if glayer:
-                    glayer.setName(glayer_name)
-                self.doc.refreshProjection()
-                if not is_inpaint:
-                    mask_trigger(layers)
-
-            self.client.images_received.disconnect(cb)
+        cb, glayer = self.basic_callback_crafter(mode)
         
         if is_inpaint:
             mask_image, transparency_mask = self.get_mask_image()
@@ -528,6 +485,13 @@ class Script(QObject):
             mask_image = sel_image = self.get_selection_image()
 
         self.client.run_workflow(workflow, sel_image, mask_image, cb)
+
+    def apply_get_last_images(self):
+
+        cb, glayer = self.basic_callback_crafter("receive")
+
+        self.client.receive_images("", skip_status_check=True)
+        self.client.images_received.connect(cb)
 
     def transparency_mask_inserter(self):
         """Mask out extra regions due to adjust_selection()."""
@@ -669,6 +633,9 @@ class Script(QObject):
         if not self.doc:
             return
         return self.apply_get_workflow(mode)
+    
+    def action_get_last_images(self):
+        self.apply_get_last_images()
 
     def action_update_eta(self):
         self.client.check_progress(self.progress_update.emit)
