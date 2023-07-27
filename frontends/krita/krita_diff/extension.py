@@ -65,3 +65,7 @@ class SDPluginExtension(Extension):
             "paint_ext_interrupt", "Interrupt image generation", "tools/scripts"
         )
         interrupt_action.triggered.connect(lambda: script.action_interrupt())
+        get_last_images_action = window.createAction(
+            "get_last_images", "Get last generated images", "tools/scripts"
+        )
+        get_last_images_action.triggered.connect(lambda: script.action_get_last_images())
