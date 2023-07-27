@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Service
 ServiceTypes=Krita/PythonPlugin
-X-KDE-Library=krita_diff
+X-KDE-Library=krita_comfy
 X-Python-2-Compatible=false
 X-Krita-Manual=manual.html
 Name=ComfyUI Plugin

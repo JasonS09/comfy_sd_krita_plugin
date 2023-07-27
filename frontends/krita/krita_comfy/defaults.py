@@ -138,11 +138,10 @@ class Defaults:
     txt2img_scheduler: str = "normal"
     txt2img_steps: int = 20
     txt2img_cfg_scale: float = 7.0
-    txt2img_denoising_strength: float = 0.7
+    txt2img_denoising_strength: float = 0.3
     txt2img_seed: str = ""
     txt2img_workflow: str = ""
     txt2img_custom_workflow: bool = False
-    # TODO: Seed variation
 
     img2img_prompt: str = ""
     img2img_negative_prompt: str = ""
@@ -150,9 +149,9 @@ class Defaults:
     img2img_sampler: str = "Euler a"
     img2img_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     img2img_scheduler: str = "normal"
-    img2img_steps: int = 40
-    img2img_cfg_scale: float = 12.0
-    img2img_denoising_strength: float = 0.8
+    img2img_steps: int = 20
+    img2img_cfg_scale: float = 8.0
+    img2img_denoising_strength: float = 0.5
     img2img_seed: str = ""
     img2img_color_correct: bool = False
     img2img_input_save_as: str = "input.png"
@@ -165,8 +164,8 @@ class Defaults:
     inpaint_sampler: str = "LMS"
     inpaint_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     inpaint_scheduler: str = "normal"
-    inpaint_steps: int = 100
-    inpaint_cfg_scale: float = 5.0
+    inpaint_steps: int = 20
+    inpaint_cfg_scale: float = 8.0
     inpaint_denoising_strength: float = 0.40
     inpaint_seed: str = ""
     inpaint_invert_mask: bool = False
