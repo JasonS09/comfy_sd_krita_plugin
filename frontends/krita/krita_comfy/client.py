@@ -944,7 +944,7 @@ class Client(QObject):
         self.cfg.set("workflow_img_data", image_data)
         return params
     
-    def run_custom_workflow(self, workflow, seed, mode, src_img, mask_img = None, controlnet_src_imgs = {}):
+    def run_injected_custom_workflow(self, workflow, seed, mode, src_img, mask_img = None, controlnet_src_imgs = {}):
         params = self.restore_params(json.loads(workflow), src_img, mask_img)
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         positive_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_pos"]
@@ -971,6 +971,7 @@ class Client(QObject):
             params[negative_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_negative_prompt", str)
         
         if ksampler_found and positive_prompt_found and negative_prompt_found:
+            self.loadLoRAs(params, mode)
             self.apply_controlnet(params, controlnet_src_imgs)
         
         return params
@@ -1073,7 +1074,7 @@ class Client(QObject):
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             workflow = self.cfg("txt2img_workflow", str)
-            params = self.run_custom_workflow(workflow, seed, "txt2img", src_img, None, controlnet_src_imgs)
+            params = self.run_injected_custom_workflow(workflow, seed, "txt2img", src_img, None, controlnet_src_imgs)
 
         if cb is None:
             return self.get_workflow(params, "txt2img")
@@ -1189,7 +1190,7 @@ class Client(QObject):
             self.loadLoRAs(params, "img2img")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
-            params = self.run_custom_workflow(
+            params = self.run_injected_custom_workflow(
                 self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, controlnet_src_imgs
             )
 
@@ -1390,7 +1391,7 @@ class Client(QObject):
             self.loadLoRAs(params, "inpaint")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
-            params = self.run_custom_workflow(self.cfg("inpaint_workflow", str), seed,
+            params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
                                      "inpaint", src_img, mask_img, controlnet_src_imgs)
 
         if cb is None:
@@ -1494,7 +1495,7 @@ class Client(QObject):
             else:
                 upscale_latent()
         else:
-            params = self.run_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img)
+            params = self.run_injected_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img)
 
         if cb is None:
             return self.get_workflow(params, "upscale")
