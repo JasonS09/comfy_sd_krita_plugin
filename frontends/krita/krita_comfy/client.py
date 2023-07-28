@@ -417,7 +417,7 @@ class Client(QObject):
 
         return params
 
-    def loadLoRAs(self, params, prefix, connect_last_lora_outputs = True):
+    def loadLoRAs(self, params, connect_last_lora_outputs = True):
         '''Call only when base prompt structure is already stored in params,
         otherwise will probably not work.'''
 
@@ -942,7 +942,8 @@ class Client(QObject):
         self.cfg.set("workflow_img_data", image_data)
         return params
     
-    def run_injected_custom_workflow(self, workflow, seed, mode, src_img, mask_img = None, controlnet_src_imgs = {}):
+    def run_injected_custom_workflow(self, workflow, seed, mode, src_img, mask_img = None, controlnet_src_imgs = {},
+                                     width = None, height = None):
         params = self.restore_params(json.loads(workflow), src_img, mask_img)
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         positive_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_pos"]
@@ -951,6 +952,12 @@ class Client(QObject):
         positive_prompt_found = positive_prompt_id in params
         negative_prompt_found = negative_prompt_id in params
         model_loader_found =  DEFAULT_NODE_IDS["CheckpointLoaderSimple"] in params
+
+        if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
+            empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
+            params[empty_latent_image_id]["inputs"]["height"] = height
+            params[empty_latent_image_id]["inputs"]["width"] = width
+            params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
 
         if ksampler_found:
             ksampler_inputs = params[ksampler_id]["inputs"]
@@ -971,13 +978,13 @@ class Client(QObject):
         
         if model_loader_found:
             if LAST_LOADED_LORA in workflow:
-                last_lora_id = self.loadLoRAs(params, mode, False)
+                last_lora_id = self.loadLoRAs(params, False)
                 str_params = json.dumps(params)
                 str_params = str_params.replace(LAST_LOADED_LORA, last_lora_id)
                 params = json.loads(str_params)
             else:
                 if ksampler_found and positive_prompt_found and negative_prompt_found:
-                    self.loadLoRAs(params, mode)
+                    self.loadLoRAs(params)
         
         if ksampler_found and positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs)
@@ -1077,7 +1084,7 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
-            self.loadLoRAs(params, "txt2img")
+            self.loadLoRAs(params)
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             workflow = self.cfg("txt2img_workflow", str)
@@ -1194,7 +1201,7 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "img2img")
             
-            self.loadLoRAs(params, "img2img")
+            self.loadLoRAs(params)
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(
@@ -1395,7 +1402,7 @@ class Client(QObject):
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
                     0
                 ]
-            self.loadLoRAs(params, "inpaint")
+            self.loadLoRAs(params)
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
