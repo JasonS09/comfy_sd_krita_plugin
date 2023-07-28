@@ -444,7 +444,7 @@ class Script(QObject):
         controlnet_input_images = self.get_controlnet_input_images(sel_image)
         if mode == "txt2img":
             params = self.client.post_txt2img(
-                None, self.width, self.height, controlnet_input_images
+                None, self.width, self.height, sel_image, controlnet_input_images
             )
         if mode == "img2img":
             params = self.client.post_img2img(
