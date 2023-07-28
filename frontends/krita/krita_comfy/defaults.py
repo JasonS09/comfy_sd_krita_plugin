@@ -50,7 +50,7 @@ TAB_PREVIEW = "krita_diff_preview"
 DEFAULT_NODE_IDS = {
     "KSampler": "3",
     "CheckpointLoaderSimple" : "4",
-    "EmptyLatentImage": "EmptyLatentImage",
+    "EmptyLatentImage": "5",
     "ClipTextEncode_pos": "6",
     "ClipTextEncode_neg": "7",
     "VAEDecode": "VAEDecode",
