@@ -49,7 +49,7 @@ TAB_PREVIEW = "krita_diff_preview"
 
 DEFAULT_NODE_IDS = {
     "KSampler": "3",
-    "CheckpointLoaderSimple" : "CheckpointLoaderSimple",
+    "CheckpointLoaderSimple" : "4",
     "EmptyLatentImage": "EmptyLatentImage",
     "ClipTextEncode_pos": "6",
     "ClipTextEncode_neg": "7",
@@ -91,6 +91,7 @@ DEFAULT_NODE_IDS = {
 PRUNED_DATA = "<<PrunedImageData>>"
 SELECTED_IMAGE = "<<SelectedImage>>"
 CURRENT_LAYER_AS_MASK = "<<CurrentLayerAsMask>>"
+LAST_LOADED_LORA = "<<LastLoadedLora>>"
 
 @dataclass(frozen=True)
 class Defaults:

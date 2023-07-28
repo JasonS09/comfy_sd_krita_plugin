@@ -31,7 +31,8 @@ from .defaults import (
     DEFAULT_NODE_IDS,
     PRUNED_DATA,
     SELECTED_IMAGE,
-    CURRENT_LAYER_AS_MASK
+    CURRENT_LAYER_AS_MASK,
+    LAST_LOADED_LORA
 )
 from .utils import (
     bytewise_xor,
@@ -416,9 +417,9 @@ class Client(QObject):
 
         return params
 
-    def loadLoRAs(self, params, prefix):
+    def loadLoRAs(self, params, prefix, connect_to_ksamplers = True):
         '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work'''
+        otherwise will probably not work.'''
 
         # Initialize a counter to keep track of the number of nodes added
         lora_count = 0
@@ -435,6 +436,9 @@ class Client(QObject):
             strength_number = float(match[1])
 
             # Create a node dictionary with the class type, inputs, and outputs
+            clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
+            clip = clipsetlastlayer_id if clipsetlastlayer_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+            prev_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
             node = {
                 "class_type": "LoraLoader",
                 "inputs": {
@@ -444,14 +448,12 @@ class Client(QObject):
                     # If this is the first node, use the default model and clip parameters
                     # Otherwise, use the previous node id as the model and clip parameters
                     "model": [
-                        DEFAULT_NODE_IDS[
-                            "CheckpointLoaderSimple"] if lora_count == 0 else f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
+                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"] if lora_count == 0 else prev_lora_id,
                         0
                     ],
                     "clip": [
-                        DEFAULT_NODE_IDS[
-                            "ClipSetLastLayer"] if lora_count == 0 else f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
-                        0 if lora_count == 0 else 1
+                        clip if lora_count == 0 else prev_lora_id,
+                        1 if lora_count == 0 or clipsetlastlayer_id not in params else 0
                     ]
                 }
             }
@@ -466,30 +468,22 @@ class Client(QObject):
             lora_count += 1
 
         if lora_count > 0:
-            #Connect KSampler to last lora node.
-            params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
-                f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
-                0
-            ]
+            last_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
+            if connect_to_ksamplers:
+                #Connect KSampler to last lora node.
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [last_lora_id, 0]
 
-            #Connect KSampler for upscale (second pass) to last lora node if found.
-            if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
-                params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [
-                    f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
-                    0
-                ]
+                #Connect KSampler for upscale (second pass) to last lora node if found.
+                if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
+                    params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [last_lora_id, 0]
             
             #Connect positive prompt to lora clip.
-            params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["clip"] = [
-                f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
-                1
-            ]
+            params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["clip"] = [last_lora_id, 1]
             
             #Connect negative prompt to lora clip.
-            params[DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["clip"] = [
-                f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}",
-                1
-            ]
+            params[DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["clip"] = [last_lora_id, 1]
+
+            return last_lora_id
 
     def upscale_latent(self, params, width, height, seed, cfg_prefix):
         '''Call only when base prompt structure is already stored in params,
@@ -952,6 +946,7 @@ class Client(QObject):
         ksampler_found =  ksampler_id in params
         positive_prompt_found = positive_prompt_id in params
         negative_prompt_found = negative_prompt_id in params
+        model_loader_found =  DEFAULT_NODE_IDS["CheckpointLoaderSimple"] in params
 
         if ksampler_found:
             ksampler_inputs = params[ksampler_id]["inputs"]
@@ -970,10 +965,18 @@ class Client(QObject):
         if negative_prompt_found:
             params[negative_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_negative_prompt", str)
         
-        if ksampler_found and positive_prompt_found and negative_prompt_found:
-            self.loadLoRAs(params, mode)
-            self.apply_controlnet(params, controlnet_src_imgs)
+        if positive_prompt_found and negative_prompt_found and model_loader_found:
+            if LAST_LOADED_LORA in workflow:
+                last_lora_id = self.loadLoRAs(params, mode, False)
+                str_params = json.dumps(params)
+                str_params = str_params.replace(LAST_LOADED_LORA, last_lora_id)
+                params = json.loads(str_params)
+            else:
+                if ksampler_found:
+                    self.loadLoRAs(params, mode)
         
+        if ksampler_found and positive_prompt_found and negative_prompt_found:
+            self.apply_controlnet(params, controlnet_src_imgs)
         return params
 
     def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
