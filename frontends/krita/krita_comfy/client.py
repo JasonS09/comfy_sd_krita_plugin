@@ -256,7 +256,7 @@ class Client(QObject):
             if i != 0:
                 timer = QTimer()
                 timer.timeout.connect(check_if_populated)
-                timer.start(0.05)
+                timer.start(50)
 
         if status == STATE_DONE or skip_status_check:
             # Prevent undesired executions of this function.
