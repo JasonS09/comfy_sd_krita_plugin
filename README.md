@@ -20,6 +20,8 @@ Supports:
 
 This plugin offers a (somewhat) user friendly UI which can allow the user to make AI art in a rather simple way (for those that don't like the nodes), while also giving the option to use traditional digital art and edition tools to work on generated images. The plugin creates the necessary workflow under the hood to be run on an active ComfyUI instance. Generated images are then requested by the plugin and added to the canvas, and are also stored on your ComfyUI outputs directory. You are also given the possibility to work with your own custom workflows and inject them to the plugin to alter the behaviour of your generations.
 
+[More info in the user guide](https://github.com/JasonS09/comfy_sd_krita_plugin/wiki)
+
 ### Requirements
 - Krita (of course).
 - ComfyUI (of course).
@@ -44,7 +46,5 @@ Windows commands example:
 `mklink /d your-pykrita-dir\krita_comfy "your-local-repo-dir\frontends\krita\krita_comfy"`  
 `mklink your-pykrita-dir\krita_comfy.desktop "your-local-repo-dir\frontends\krita\krita_comfy.desktop"`
 - Your plugin is ready.
-
-*Usage guide coming soon...*
 
 Found this useful? [Buy me a coffee!](https://www.buymeacoffee.com/piratewolf09)
