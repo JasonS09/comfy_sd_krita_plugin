@@ -423,11 +423,15 @@ class Client(QObject):
 
         # Initialize a counter to keep track of the number of nodes added
         lora_count = 0
+        pos_prompt = params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"]
 
         # Use a regular expression to find all the elements between < and > in the string
         import re
         pattern = r"<lora:(\w+):([\d.]+)>"
-        matches = re.findall(pattern, self.cfg(f"{prefix}_prompt", str))
+        matches = re.findall(pattern, pos_prompt)
+
+        # Remove LoRAs from prompt
+        params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"] = re.sub(pattern, "", pos_prompt)
 
         # Loop through the matches and create a node for each element
         for match in matches:
