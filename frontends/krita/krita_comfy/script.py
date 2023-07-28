@@ -442,8 +442,9 @@ class Script(QObject):
 
     def apply_get_workflow(self, mode):
         params = {}
-        sel_image = self.get_selection_image() if mode != "inpaint" else None
-        controlnet_input_images = self.get_controlnet_input_images(sel_image)
+        if mode != "inpaint":
+            sel_image = self.get_selection_image()
+            controlnet_input_images = self.get_controlnet_input_images(sel_image)
         if mode == "txt2img":
             params = self.client.post_txt2img(
                 None, self.width, self.height, sel_image, controlnet_input_images
@@ -462,6 +463,8 @@ class Script(QObject):
                 self.doc.refreshProjection()
             else:
                 sel_image = self.get_selection_image()
+
+            controlnet_input_images = self.get_controlnet_input_images(sel_image)
             params = self.client.post_inpaint(
                 None, sel_image, mask_image, self.width, self.height, controlnet_input_images
             )
