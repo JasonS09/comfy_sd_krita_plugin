@@ -417,7 +417,7 @@ class Client(QObject):
 
         return params
 
-    def loadLoRAs(self, params, prefix, connect_to_ksamplers = True):
+    def loadLoRAs(self, params, prefix, connect_last_lora_outputs = True):
         '''Call only when base prompt structure is already stored in params,
         otherwise will probably not work.'''
 
@@ -469,7 +469,7 @@ class Client(QObject):
 
         if lora_count > 0:
             last_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
-            if connect_to_ksamplers:
+            if connect_last_lora_outputs:
                 #Connect KSampler to last lora node.
                 params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [last_lora_id, 0]
 
@@ -477,11 +477,11 @@ class Client(QObject):
                 if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
                     params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [last_lora_id, 0]
             
-            #Connect positive prompt to lora clip.
-            params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["clip"] = [last_lora_id, 1]
-            
-            #Connect negative prompt to lora clip.
-            params[DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["clip"] = [last_lora_id, 1]
+                #Connect positive prompt to lora clip.
+                params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["clip"] = [last_lora_id, 1]
+                
+                #Connect negative prompt to lora clip.
+                params[DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["clip"] = [last_lora_id, 1]
 
             return last_lora_id
 
@@ -965,14 +965,14 @@ class Client(QObject):
         if negative_prompt_found:
             params[negative_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_negative_prompt", str)
         
-        if positive_prompt_found and negative_prompt_found and model_loader_found:
+        if model_loader_found:
             if LAST_LOADED_LORA in workflow:
                 last_lora_id = self.loadLoRAs(params, mode, False)
                 str_params = json.dumps(params)
                 str_params = str_params.replace(LAST_LOADED_LORA, last_lora_id)
                 params = json.loads(str_params)
             else:
-                if ksampler_found:
+                if ksampler_found and positive_prompt_found and negative_prompt_found:
                     self.loadLoRAs(params, mode)
         
         if ksampler_found and positive_prompt_found and negative_prompt_found:
