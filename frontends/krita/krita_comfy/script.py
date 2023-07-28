@@ -293,8 +293,10 @@ class Script(QObject):
                     insert(name if name else f"{mode} {i + 1}", output)
                     for output, name, i in zip(outputs, layer_names, itertools.count())
                 ]
-            except:
+            except Exception as e:
                 self.client.images_received.disconnect(cb)
+                assert False, e
+                return
 
             if self.cfg("hide_layers", bool):
                 for layer in layers[:-1]:
