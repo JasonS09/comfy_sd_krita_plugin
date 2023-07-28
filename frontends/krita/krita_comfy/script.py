@@ -404,7 +404,7 @@ class Script(QObject):
 
         timer = QTimer()
         timer.timeout.connect(apply_mask_when_ready)
-        timer.start(0.05)
+        timer.start(50)
 
     def apply_controlnet_preview_annotator(self): 
         unit = self.cfg("controlnet_unit", str)
