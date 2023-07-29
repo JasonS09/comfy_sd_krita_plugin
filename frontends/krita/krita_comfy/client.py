@@ -429,7 +429,7 @@ class Client(QObject):
         pos_prompt = self.cfg(f"{mode}_prompt", str)
 
         # Use a regular expression to find all the elements between < and > in the string
-        pattern = r"<lora:(\w+):([\d.]+)>"
+        pattern = r"<lora:([\w\d.-]+):([\d.]+)>"
         matches = re.findall(pattern, pos_prompt)
 
         # Remove LoRAs from prompt
@@ -906,7 +906,7 @@ class Client(QObject):
         loras_loaded = False
 
         def RemoveLoraFromPrompt():
-            pattern = r"<lora:(\w+):([\d.]+)>"
+            pattern = r"<lora:([\w\d.-]+):([\d.]+)>"
             return re.sub(pattern, "", prompt)
 
         def LoadPlaceholderData():
@@ -975,17 +975,17 @@ class Client(QObject):
             if not self.cfg("txt2img_seed", str).strip() == ""
             else randint(0, 18446744073709552000)
         )
+        resized_width, resized_height = width, height
+        disable_base_and_max_size = self.cfg(
+            "disable_sddebz_highres", bool)
+
+        if not disable_base_and_max_size:
+            resized_width, resized_height = calculate_resized_image_dimensions(
+                self.cfg("sd_base_size", int), self.cfg(
+                    "sd_max_size", int), width, height
+            )
+
         if not self.cfg("txt2img_custom_workflow", bool):
-            resized_width, resized_height = width, height
-            disable_base_and_max_size = self.cfg(
-                "disable_sddebz_highres", bool)
-
-            if not disable_base_and_max_size:
-                resized_width, resized_height = calculate_resized_image_dimensions(
-                    self.cfg("sd_base_size", int), self.cfg(
-                        "sd_max_size", int), width, height
-                )
-
             params = self.common_params()
             ksampler_node = {
                 "class_type": "KSampler",
@@ -1065,7 +1065,9 @@ class Client(QObject):
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             workflow = self.cfg("txt2img_workflow", str)
-            params = self.run_injected_custom_workflow(workflow, seed, "txt2img", src_img, None, controlnet_src_imgs)
+            params = self.run_injected_custom_workflow(
+                workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height
+            )
 
         if cb is None:
             return self.get_workflow(params, "txt2img")
@@ -1080,22 +1082,24 @@ class Client(QObject):
             if not self.cfg("img2img_seed", str).strip() == ""
             else randint(0, 18446744073709552000)
         )
+        resized_width, resized_height = width, height
+        disable_base_and_max_size = self.cfg(
+            "disable_sddebz_highres", bool)
+
+        if not disable_base_and_max_size:
+            resized_width, resized_height = calculate_resized_image_dimensions(
+                self.cfg("sd_base_size", int), self.cfg(
+                    "sd_max_size", int), width, height
+            )
+
+        src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
+
         if not self.cfg("img2img_custom_workflow", bool):
-            resized_width, resized_height = width, height
-            disable_base_and_max_size = self.cfg(
-                "disable_sddebz_highres", bool)
-
-            if not disable_base_and_max_size:
-                resized_width, resized_height = calculate_resized_image_dimensions(
-                    self.cfg("sd_base_size", int), self.cfg(
-                        "sd_max_size", int), width, height
-                )
-
             params = self.common_params()
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
-                    "image": img_to_b64(src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio))
+                    "image": img_to_b64(src_img)
                 }
             }
             vae_id = DEFAULT_NODE_IDS["VAELoader"]
@@ -1182,7 +1186,8 @@ class Client(QObject):
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(
-                self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, controlnet_src_imgs
+                self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
+                controlnet_src_imgs, resized_width, resized_height
             )
 
         if cb is None:
@@ -1199,29 +1204,32 @@ class Client(QObject):
             if not self.cfg("inpaint_seed", str).strip() == ""
             else randint(0, 18446744073709552000)
         )
+        resized_width, resized_height = width, height
+        disable_base_and_max_size = self.cfg(
+            "disable_sddebz_highres", bool)
+
+        if not disable_base_and_max_size:
+            resized_width, resized_height = calculate_resized_image_dimensions(
+                self.cfg("sd_base_size", int), self.cfg(
+                    "sd_max_size", int), width, height
+            )
+            src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
+            mask_img = mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
+
         if not self.cfg("inpaint_custom_workflow", bool):
             preserve = self.cfg("inpaint_fill", str) == "preserve"
-            resized_width, resized_height = width, height
-            disable_base_and_max_size = self.cfg(
-                "disable_sddebz_highres", bool)
-
-            if not disable_base_and_max_size:
-                resized_width, resized_height = calculate_resized_image_dimensions(
-                    self.cfg("sd_base_size", int), self.cfg(
-                        "sd_max_size", int), width, height
-                )
 
             params = self.common_params()
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
-                    "image": img_to_b64(src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio))
+                    "image": img_to_b64(src_img)
                 }
             }
             loadmask_node = {
                 "class_type": "LoadBase64ImageMask",
                 "inputs": {
-                    "image": img_to_b64(mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)),
+                    "image": img_to_b64(mask_img),
                     "channel": "alpha"
                 }
             }
