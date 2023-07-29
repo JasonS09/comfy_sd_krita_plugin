@@ -119,7 +119,7 @@ class AsyncRequest(QObject):
                 # print(f"Encrypt Result:\n{self.data}")
                 self.headers["Content-Type"] = "application/json"
                 self.headers["Content-Length"] = str(len(self.data))
-
+        #self.headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
     def run(self):
         try:
             url = self.url
@@ -694,59 +694,6 @@ class Client(QObject):
             params.update({
                 imageloader_node_id: controlnet_imageloader_node
             })
-
-        # if "Reference" in preprocessor_prefix:
-        #     last_lora_id = ""
-        #     for key in params.keys():
-        #         if key.startswith(DEFAULT_NODE_IDS["LoraLoader"]):
-        #             last_lora_id = key
-
-        #     vae_id = DEFAULT_NODE_IDS["VAELoader"]
-        #     checkpoint_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
-        #     vaeencode_reference_node = {
-        #         "class_type": "VAEEncode",
-        #         "inputs": {
-        #             "pixels": [
-        #                 imageloader_node_id,
-        #                 0
-        #             ],
-        #             "vae": [
-        #                 vae_id if vae_id in params else checkpoint_loader_id,
-        #                 0 if vae_id in params else 2
-        #             ]
-        #         }
-        #     }
-        #     vaeencode_reference_node_id = f"{DEFAULT_NODE_IDS['VAEEncode']}Reference"
-        #     params.update({
-        #         vaeencode_reference_node_id: vaeencode_reference_node,
-        #     })
-        #     inputs = self.cfg(f"controlnet{unit}_inputs", dict)
-        #     inputs.update({
-        #         "ref": [
-        #             vaeencode_reference_node_id,
-        #             0
-        #         ],
-        #         "model": [
-        #             last_lora_id if last_lora_id != "" else checkpoint_loader_id,
-        #             0
-        #         ]
-        #     })
-        #     preprocessor_node = {
-        #         "class_type": f"{preprocessor_prefix}Preprocessor",
-        #         "inputs": inputs
-        #     }
-        #     preprocessor_node_id = f"{preprocessor_prefix}+{unit}"
-        #     params.update({
-        #         preprocessor_node_id: preprocessor_node
-        #     })
-        #     params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [
-        #         preprocessor_node_id, 0
-        #     ]
-        #     if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
-        #         params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [
-        #             preprocessor_node_id, 0
-        #         ]
-        #     return prev   
 
         if "Inpaint" in preprocessor_prefix:
             mask_node_id = DEFAULT_NODE_IDS["LoadBase64ImageMask"]
@@ -1592,15 +1539,18 @@ class Client(QObject):
         self.get_images(params, cb)
 
     def restore_params(self, params, src_img, mask=None):
+        workflow_image_data = None
         if mask == None:
             mask = src_img
 
         mode = self.cfg("workflow_to", str)
-        workflow_image_data = self.cfg("workflow_img_data", dict)[mode]
+        if mode in self.cfg("workflow_img_data", dict):
+            workflow_image_data = self.cfg("workflow_img_data", dict)[mode]
         for node_id, node in params.items():
             if node["class_type"] in ["LoadBase64Image", "LoadBase64ImageMask"]:
                 for input_key, input_value in node["inputs"].items():
-                    if input_value == PRUNED_DATA and node_id in workflow_image_data:
+                    if workflow_image_data is not None and input_value == PRUNED_DATA and \
+                          node_id in workflow_image_data:
                         image_data = workflow_image_data[node_id]
                         node["inputs"][input_key] = image_data[input_key]
                     elif input_value == SELECTED_IMAGE:
