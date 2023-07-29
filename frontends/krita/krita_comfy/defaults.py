@@ -91,7 +91,7 @@ DEFAULT_NODE_IDS = {
 PRUNED_DATA = "<<PrunedImageData>>"
 SELECTED_IMAGE = "<<SelectedImage>>"
 CURRENT_LAYER_AS_MASK = "<<CurrentLayerAsMask>>"
-LAST_LOADED_LORA = "<<LastLoadedLora>>"
+LAST_LOADED_LORA = r"<<LastLoadedLora\|(.+?)>>"
 PROMPT = "<<Prompt>>"
 NEGATIVE_PROMPT = "<<NegativePrompt>>"
 
