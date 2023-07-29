@@ -900,21 +900,33 @@ class Client(QObject):
         ksampler_found =  ksampler_id in params
         positive_prompt_found = positive_prompt_id in params
         negative_prompt_found = negative_prompt_id in params
-        model_loader_found =  DEFAULT_NODE_IDS["CheckpointLoaderSimple"] in params
+        model_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        model_loader_found =  model_loader_id in params
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
 
-        def RemoveLoraFromPrompt():
+        def remove_lora_from_prompt():
             pattern = r"<lora:([\w\d.-]+):([\d.]+)>"
             return re.sub(pattern, "", prompt)
 
-        def LoadPlaceholderData():
+        def load_placeholder_data():
+            # Define a function that takes a match object and returns a replacement string
+            def replace_lora_pattern(match, last_lora_id = None):
+                # Get the group inside the parentheses
+                group = match.group(1)
+                # If last_lora_id is not None, return its value
+                if last_lora_id is not None:
+                    return last_lora_id
+                # Otherwise, return the group value
+                else:
+                    return group
+                
             nonlocal loras_loaded, params
             str_params = ""
             if PROMPT in workflow:
                 str_params = json.dumps(params)
-                str_params = str_params.replace(PROMPT, RemoveLoraFromPrompt())
+                str_params = str_params.replace(PROMPT, remove_lora_from_prompt())
             
             if NEGATIVE_PROMPT in workflow:
                 if str_params == "":
@@ -927,10 +939,12 @@ class Client(QObject):
                 str_params = ""
             
             if model_loader_found and positive_prompt_found:
-                if LAST_LOADED_LORA in workflow:
-                    last_lora_id = self.loadLoRAs(params, mode, False)
+                if re.search(LAST_LOADED_LORA, workflow):
+                    last_lora_id = self.loadLoRAs(params, mode, False)       
                     str_params = json.dumps(params)
-                    str_params = str_params.replace(LAST_LOADED_LORA, last_lora_id)
+                    str_params = re.sub(
+                        LAST_LOADED_LORA, lambda match: replace_lora_pattern(match, last_lora_id), str_params
+                    )
                     loras_loaded = True
 
             return json.loads(str_params) if str_params != "" else params
@@ -952,10 +966,10 @@ class Client(QObject):
             ksampler_inputs["sampler_name"] = self.cfg(f"{mode}_sampler", str)
             ksampler_inputs["scheduler"] = self.cfg(f"{mode}_scheduler", str)
 
-        params = LoadPlaceholderData()
+        params = load_placeholder_data()
 
         if positive_prompt_found:
-            params[positive_prompt_id]["inputs"]["text"] = RemoveLoraFromPrompt()
+            params[positive_prompt_id]["inputs"]["text"] = remove_lora_from_prompt()
 
         if negative_prompt_found:
             params[negative_prompt_id]["inputs"]["text"] = negative_prompt
