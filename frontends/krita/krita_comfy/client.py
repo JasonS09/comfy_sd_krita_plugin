@@ -1,6 +1,7 @@
 import json
 import socket
 import uuid
+import re
 from math import ceil
 from random import randint
 from typing import Any
@@ -32,7 +33,9 @@ from .defaults import (
     PRUNED_DATA,
     SELECTED_IMAGE,
     CURRENT_LAYER_AS_MASK,
-    LAST_LOADED_LORA
+    LAST_LOADED_LORA,
+    PROMPT,
+    NEGATIVE_PROMPT
 )
 from .utils import (
     bytewise_xor,
@@ -417,16 +420,15 @@ class Client(QObject):
 
         return params
 
-    def loadLoRAs(self, params, connect_last_lora_outputs = True):
+    def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
         '''Call only when base prompt structure is already stored in params,
         otherwise will probably not work.'''
 
         # Initialize a counter to keep track of the number of nodes added
         lora_count = 0
-        pos_prompt = params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"]
+        pos_prompt = self.cfg(f"{mode}_prompt", str)
 
         # Use a regular expression to find all the elements between < and > in the string
-        import re
         pattern = r"<lora:(\w+):([\d.]+)>"
         matches = re.findall(pattern, pos_prompt)
 
@@ -952,6 +954,39 @@ class Client(QObject):
         positive_prompt_found = positive_prompt_id in params
         negative_prompt_found = negative_prompt_id in params
         model_loader_found =  DEFAULT_NODE_IDS["CheckpointLoaderSimple"] in params
+        prompt = self.cfg(f"{mode}_prompt", str)
+        negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
+        loras_loaded = False
+
+        def RemoveLoraFromPrompt():
+            pattern = r"<lora:(\w+):([\d.]+)>"
+            return re.sub(pattern, "", prompt)
+
+        def LoadPlaceholderData():
+            nonlocal loras_loaded, params
+            str_params = ""
+            if PROMPT in workflow:
+                str_params = json.dumps(params)
+                str_params = str_params.replace(PROMPT, RemoveLoraFromPrompt())
+            
+            if NEGATIVE_PROMPT in workflow:
+                if str_params == "":
+                    str_params = json.dumps(params)
+                str_params = str_params.replace(NEGATIVE_PROMPT, negative_prompt)
+            
+            # Bring back the dict to load the loras
+            if str_params != "":
+                params = json.loads(str_params)
+                str_params = ""
+            
+            if model_loader_found and positive_prompt_found:
+                if LAST_LOADED_LORA in workflow:
+                    last_lora_id = self.loadLoRAs(params, mode, False)
+                    str_params = json.dumps(params)
+                    str_params = str_params.replace(LAST_LOADED_LORA, last_lora_id)
+                    loras_loaded = True
+
+            return json.loads(str_params) if str_params != "" else params
 
         if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
@@ -970,21 +1005,16 @@ class Client(QObject):
             ksampler_inputs["sampler_name"] = self.cfg(f"{mode}_sampler", str)
             ksampler_inputs["scheduler"] = self.cfg(f"{mode}_scheduler", str)
 
+        params = LoadPlaceholderData()
+
         if positive_prompt_found:
-            params[positive_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_prompt", str)
+            params[positive_prompt_id]["inputs"]["text"] = RemoveLoraFromPrompt()
 
         if negative_prompt_found:
-            params[negative_prompt_id]["inputs"]["text"] = self.cfg(f"{mode}_negative_prompt", str)
+            params[negative_prompt_id]["inputs"]["text"] = negative_prompt
         
-        if model_loader_found:
-            if LAST_LOADED_LORA in workflow:
-                last_lora_id = self.loadLoRAs(params, False)
-                str_params = json.dumps(params)
-                str_params = str_params.replace(LAST_LOADED_LORA, last_lora_id)
-                params = json.loads(str_params)
-            else:
-                if ksampler_found and positive_prompt_found and negative_prompt_found:
-                    self.loadLoRAs(params)
+        if not loras_loaded and model_loader_found and ksampler_found and positive_prompt_found and negative_prompt_found:
+            self.loadLoRAs(params, mode)
         
         if ksampler_found and positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs)
@@ -1084,7 +1114,7 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
-            self.loadLoRAs(params)
+            self.loadLoRAs(params, "txt2img")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             workflow = self.cfg("txt2img_workflow", str)
@@ -1201,7 +1231,7 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "img2img")
             
-            self.loadLoRAs(params)
+            self.loadLoRAs(params, "img2img")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(
@@ -1402,7 +1432,7 @@ class Client(QObject):
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
                     0
                 ]
-            self.loadLoRAs(params)
+            self.loadLoRAs(params, "inpaint")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
