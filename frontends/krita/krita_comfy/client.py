@@ -422,7 +422,7 @@ class Client(QObject):
 
     def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
         '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work.'''
+        otherwise will probably not work'''
 
         # Initialize a counter to keep track of the number of nodes added
         lora_count = 0
@@ -955,12 +955,6 @@ class Client(QObject):
             params[empty_latent_image_id]["inputs"]["width"] = width
             params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
 
-        if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
-            empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
-            params[empty_latent_image_id]["inputs"]["height"] = height
-            params[empty_latent_image_id]["inputs"]["width"] = width
-            params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
-
         if ksampler_found:
             ksampler_inputs = params[ksampler_id]["inputs"]
             if "seed" in ksampler_inputs:
@@ -1081,7 +1075,7 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
-            self.loadLoRAs(params)
+            self.loadLoRAs(params, "txt2img")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             workflow = self.cfg("txt2img_workflow", str)
@@ -1202,7 +1196,7 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "img2img")
             
-            self.loadLoRAs(params)
+            self.loadLoRAs(params, "img2img")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(
@@ -1407,7 +1401,7 @@ class Client(QObject):
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
                     0
                 ]
-            self.loadLoRAs(params)
+            self.loadLoRAs(params, "inpaint")
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
