@@ -45,6 +45,15 @@ This plugin offers a (somewhat) user friendly UI which can allow the user to mak
 Windows commands example:  
 `mklink /d your-pykrita-dir\krita_comfy "your-local-repo-dir\frontends\krita\krita_comfy"`  
 `mklink your-pykrita-dir\krita_comfy.desktop "your-local-repo-dir\frontends\krita\krita_comfy.desktop"`
-- Your plugin is ready.
+- Your plugin is ready. If it is not loading, make sure it is enabled.
+
+#### Enabling the plugin
+First save your custom Workspace, it will change after we are done.
+
+- Go to Settings > Configure Krita. It will open the Config menu.
+- On the Left panel select "Python Plugin Manager"
+- Check "ComfyUI Plugin" in the checkbox list on the left panel and click OK to close the menu.
+- After restarting Krita your Workspace should be populated by new dockers, you can show/hide them in the Settings > Dockers checklist.
+- Rearrange your Workspace and save it with a name (like "ComfyUI").
 
 Found this useful? [Buy me a coffee!](https://www.buymeacoffee.com/piratewolf09)
