@@ -384,7 +384,7 @@ class Script(QObject):
         mw = gray_mask.width()
         mh = gray_mask.height()
         # crop mask to the actual selection size
-        crop_rect = QRect((mw - sw)/2,(mh - sh)/2, sw, sh)
+        crop_rect = QRect(int((mw - sw)/2), int((mh - sh)/2), int(sw), int(sh))
         crop_mask = gray_mask.copy(crop_rect)
 
         mask_ba = img_to_ba(crop_mask)
