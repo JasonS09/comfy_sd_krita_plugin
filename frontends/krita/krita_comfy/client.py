@@ -459,7 +459,7 @@ class Client(QObject):
                     ],
                     "clip": [
                         clip if lora_count == 0 else prev_lora_id,
-                        1 if lora_count == 0 or clipsetlastlayer_id not in params else 0
+                        1 if lora_count > 0 or clipsetlastlayer_id not in params else 0
                     ]
                 }
             }
