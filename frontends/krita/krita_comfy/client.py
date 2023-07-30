@@ -422,7 +422,7 @@ class Client(QObject):
 
     def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
         '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work.'''
+        otherwise will probably not work'''
 
         # Initialize a counter to keep track of the number of nodes added
         lora_count = 0
