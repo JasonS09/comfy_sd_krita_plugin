@@ -417,7 +417,7 @@ class Script(QObject):
 
         def cb(response):
             assert response is not None, "Backend Error, check terminal"
-            output = response["outputs"]
+            output = response["outputs"][0]
             pixmap = QPixmap.fromImage(b64_to_img(output))
             self.controlnet_preview_annotator_received.emit(pixmap)
 
