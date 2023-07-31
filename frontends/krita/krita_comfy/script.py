@@ -256,11 +256,11 @@ class Script(QObject):
             # Don't fail silently for setPixelData(); fails if bit depth or number of channels mismatch
             if not skip_check_pixel_data:
                 size = ba.size()
-                expected = layer.pixelData(x, y, width, height).size()
+                expected = layer.pixelData(int(x), int(y), int(width), int(height)).size()
                 assert expected == size, f"Raw data size: {size}, Expected size: {expected}"
 
             print(f"inserting at x: {x}, y: {y}, w: {width}, h: {height}")
-            layer.setPixelData(ba, x, y, width, height)
+            layer.setPixelData(ba, int(x), int(y), int(width), int(height))
             self._inserted_layers.append(layer)
 
             return layer
@@ -394,7 +394,7 @@ class Script(QObject):
         h = crop_mask.sizeInBytes()/w
 
         mask_selection = Selection()
-        mask_selection.setPixelData(mask_ba, sx, sy, w, h)
+        mask_selection.setPixelData(mask_ba, int(sx), int(sy), int(w), int(h))
 
         def apply_mask_when_ready():
             # glayer will be selected when it is done being created
