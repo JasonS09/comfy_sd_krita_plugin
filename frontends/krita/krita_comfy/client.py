@@ -907,7 +907,7 @@ class Client(QObject):
         loras_loaded = False
 
         def remove_lora_from_prompt():
-            pattern = r"<lora:([\w\d.-]+):([\d.]+)>"
+            pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
             return re.sub(pattern, "", prompt)
 
         def load_placeholder_data():
