@@ -429,7 +429,7 @@ class Client(QObject):
         pos_prompt = self.cfg(f"{mode}_prompt", str)
 
         # Use a regular expression to find all the elements between < and > in the string
-        pattern = r"<lora:([\w\d.-]+):([\d.]+)>"
+        pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
         matches = re.findall(pattern, pos_prompt)
 
         # Remove LoRAs from prompt
@@ -907,7 +907,7 @@ class Client(QObject):
         loras_loaded = False
 
         def remove_lora_from_prompt():
-            pattern = r"<lora:([\w\d.-]+):([\d.]+)>"
+            pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
             return re.sub(pattern, "", prompt)
 
         def load_placeholder_data():
