@@ -895,14 +895,18 @@ class Client(QObject):
         return params
     
     def run_injected_custom_workflow(self, workflow, seed, mode, src_img, mask_img = None, controlnet_src_imgs = {},
-                                     width = None, height = None):
+                                     resized_width = None, resized_height = None, original_width = None, original_height = None):
         params = self.restore_params(json.loads(workflow), src_img, mask_img)
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         positive_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_pos"]
         negative_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_neg"]
+        image_scale_id = DEFAULT_NODE_IDS["ImageScale"]
+        latent_upscale_id = DEFAULT_NODE_IDS["LatentUpscale"]
         ksampler_found =  ksampler_id in params
         positive_prompt_found = positive_prompt_id in params
         negative_prompt_found = negative_prompt_id in params
+        image_scale_found = image_scale_id in params
+        latent_upscale_found = latent_upscale_id in params
         model_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
         model_loader_found =  model_loader_id in params
         prompt = self.cfg(f"{mode}_prompt", str)
@@ -954,8 +958,8 @@ class Client(QObject):
 
         if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
-            params[empty_latent_image_id]["inputs"]["height"] = height
-            params[empty_latent_image_id]["inputs"]["width"] = width
+            params[empty_latent_image_id]["inputs"]["height"] = resized_height
+            params[empty_latent_image_id]["inputs"]["width"] = resized_width
             params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
 
         if ksampler_found:
@@ -982,6 +986,15 @@ class Client(QObject):
         
         if ksampler_found and positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs)
+
+        if image_scale_found:
+            params[image_scale_id]["inputs"]["height"] = original_height
+            params[image_scale_id]["inputs"]["width"] = original_width
+        
+        if latent_upscale_found:
+            params[latent_upscale_id]["inputs"]["height"] = original_height
+            params[latent_upscale_id]["inputs"]["width"] = original_width
+
         return params
 
     def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
@@ -1083,7 +1096,7 @@ class Client(QObject):
         else:
             workflow = self.cfg("txt2img_workflow", str)
             params = self.run_injected_custom_workflow(
-                workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height
+                workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height, width, height
             )
 
         if cb is None:
@@ -1204,7 +1217,7 @@ class Client(QObject):
         else:
             params = self.run_injected_custom_workflow(
                 self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
-                controlnet_src_imgs, resized_width, resized_height
+                controlnet_src_imgs, resized_width, resized_height, width, height
             )
 
         if cb is None:
@@ -1408,7 +1421,8 @@ class Client(QObject):
             self.apply_controlnet(params, controlnet_src_imgs)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
-                                     "inpaint", src_img, mask_img, controlnet_src_imgs)
+                                     "inpaint", src_img, mask_img, controlnet_src_imgs, original_width=width,
+                                     original_height=height)
 
         if cb is None:
             return self.get_workflow(params, "inpaint")
