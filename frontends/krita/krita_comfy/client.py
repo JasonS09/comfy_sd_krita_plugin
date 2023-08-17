@@ -264,7 +264,10 @@ class Client(QObject):
         if status == STATE_DONE or skip_status_check:
             # Prevent undesired executions of this function.
             if status == STATE_DONE:
-                self.status.disconnect(self.conn)
+                try:
+                    self.status.disconnect(self.conn)
+                except TypeError:
+                    pass # signal was not connected
             self.get_history(prompt_id, on_history_received)
 
     def queue_prompt(self, prompt, cb=None):
