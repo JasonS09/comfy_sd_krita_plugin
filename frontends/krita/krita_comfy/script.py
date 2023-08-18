@@ -294,9 +294,11 @@ class Script(QObject):
                     for output, name, i in zip(outputs, layer_names, itertools.count())
                 ]
             except Exception as e:
-                self.client.images_received.disconnect(cb)
+                try:
+                    self.client.images_received.disconnect(cb)
+                except TypeError:
+                    pass
                 assert False, e
-                return
 
             if self.cfg("hide_layers", bool):
                 for layer in layers[:-1]:
