@@ -870,13 +870,16 @@ class Client(QObject):
 
         def set_preprocessor_list(obj):
             check_response(obj)
-            preprocessors = [o["name"].replace("Preprocessor", "") for o in obj.values() if "preprocessors/" in o["category"]]
             preprocessors_info = {}
-            for preprocessor_name in preprocessors:
-                preprocessors_info.update({
-                    preprocessor_name: obj[f"{preprocessor_name}Preprocessor"]["input"]["required"]
-                })
-            self.cfg.set("controlnet_preprocessor_list", ["None"] + preprocessors)
+
+            for o in obj.values():
+                if "preprocessors" in o["category"].lower():
+                    name = o["display_name"].replace("Preprocessor", "") if o["display_name"] != "" else o["name"].replace("Preprocessor", "")
+                    preprocessors_info.update({
+                        name: obj[o["name"]]["input"]["required"]
+                    })
+
+            self.cfg.set("controlnet_preprocessor_list", ["None"] + list(preprocessors_info.keys()))
             self.cfg.set("controlnet_preprocessors_info", preprocessors_info)
 
         self.get("object_info/ControlNetLoader", set_model_list)
