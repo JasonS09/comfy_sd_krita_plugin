@@ -84,7 +84,12 @@ DEFAULT_NODE_IDS = {
     #Controlnet
     "ControlNetLoader": "ControlNetLoader",
     "ControlNetImageLoader": "ControlNetImageLoader",
-    "ControlNetApplyAdvanced": "ControlNetApplyAdvanced"
+    "ControlNetApplyAdvanced": "ControlNetApplyAdvanced",
+
+    #Revision
+    "CLIPVisionLoader": "CLIPVisionLoader",
+    "CLIPVisionEncode": "CLIPVisionEncode",
+    "unCLIPConditioning": "unCLIPConditioning"
 }
 
 # Workflow data placeholders

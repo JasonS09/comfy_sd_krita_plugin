@@ -177,15 +177,35 @@ class ControlNetUnitSettings(QWidget):
             lambda value: self.set_input(inputs, key, value)
         )
         self.set_input(inputs, key, widget.qcombo.currentText())
-        self.preprocessor_settings_layout.addLayout(widget)    
+        self.preprocessor_settings_layout.addLayout(widget)
+
+    def hide_weight_and_guidance(self):
+        self.weight_layout.qspin.hide()
+        self.weight_layout.qlabel.hide()
+        self.guidance_start_layout.qspin.hide()
+        self.guidance_start_layout.qlabel.hide()
+        self.guidance_end_layout.qspin.hide()
+        self.guidance_end_layout.qlabel.hide()
+
+    def show_weight_and_guidance(self):
+        self.weight_layout.qspin.show()
+        self.weight_layout.qlabel.show()
+        self.guidance_start_layout.qspin.show()
+        self.guidance_start_layout.qlabel.show()
+        self.guidance_end_layout.qspin.show()
+        self.guidance_end_layout.qlabel.show()   
 
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
-        for preprocessor, inputs in script.cfg("controlnet_preprocessors_info", dict).items():
+        if script.cfg(f"controlnet{self.unit}_preprocessor", str) == "Revision":
+            self.hide_weight_and_guidance()
+        else:
+            self.show_weight_and_guidance()
+        for preprocessor, info in script.cfg("controlnet_preprocessors_info", dict).items():
             preprocessor_inputs = script.cfg(f"controlnet{self.unit}_inputs", dict)
             if preprocessor == script.cfg(f"controlnet{self.unit}_preprocessor", str):
-                for key, value in inputs.items():
-                    if value[0] in ["IMAGE", "MASK", "LATENT", "MODEL"]:
+                for key, value in info["inputs"].items():
+                    if value[0] in ["IMAGE", "MASK", "LATENT", "MODEL", "CLIP_VISION_OUTPUT", "CONDITIONING"]:
                         continue
                     if value[0] == "INT" or value[0] == "FLOAT":
                         rest = value[1].copy()

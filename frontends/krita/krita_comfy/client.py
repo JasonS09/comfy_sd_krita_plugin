@@ -119,6 +119,7 @@ class AsyncRequest(QObject):
                 # print(f"Encrypt Result:\n{self.data}")
                 self.headers["Content-Type"] = "application/json"
                 self.headers["Content-Length"] = str(len(self.data))
+        self.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.200"
         #self.headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
     def run(self):
         try:
@@ -656,25 +657,24 @@ class Client(QObject):
         
     def apply_controlnet(self, params, controlnet_src_imgs):
         if controlnet_src_imgs:
-            controlnet_units_param = []
-            prev = ""
+            prev = "" #chain positive conditioning
+            prev_neg = "" #chain negative conditioning
 
             for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
                 if self.cfg(f"controlnet{i}_enable", bool):
-                    prev = self.controlnet_unit_params(params, img_to_b64(
-                        controlnet_src_imgs[str(i)]), i, prev)
-                else:
-                    controlnet_units_param.append({"enabled": False})
+                    prev, prev_neg = self.controlnet_unit_params(params, img_to_b64(
+                        controlnet_src_imgs[str(i)]), i, prev, prev_neg)
             
             if prev != "":
                 params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["positive"] = [prev, 0]
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["negative"] = [prev, 1]
+            if prev_neg != "":
+                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["negative"] = [prev_neg, 1]
 
-    def controlnet_unit_params(self, params, image: str, unit: int, prev = ""):
+    def controlnet_unit_params(self, params, image: str, unit: int, prev = "", prev_neg = ""):
         '''Call only when base prompt structure is already stored in params,
         otherwise will probably not work'''
         #Image loading
-        preprocessor_prefix = self.cfg(f"controlnet{unit}_preprocessor", str)
+        preprocessor = self.cfg(f"controlnet{unit}_preprocessor", str)
         imageloader_prefix = DEFAULT_NODE_IDS["ControlNetImageLoader"]
         image_node_exists = False
         num_imageloader_nodes = 0
@@ -698,49 +698,102 @@ class Client(QObject):
                 imageloader_node_id: controlnet_imageloader_node
             })
 
-        if "Inpaint" in preprocessor_prefix:
+        if "Inpaint" in preprocessor:
             mask_node_id = DEFAULT_NODE_IDS["LoadBase64ImageMask"]
             mask_node = mask_node_id if mask_node_id in params else imageloader_node_id
             mask_node_output_num = 0 if mask_node_id in params else 1
 
         #model loading
         controlnetloader_prefix = DEFAULT_NODE_IDS["ControlNetLoader"]
+        clipvisionloader_prefix = DEFAULT_NODE_IDS["CLIPVisionLoader"]
         model_node_exists = False
+        is_controlnet = True #Or revision
         num_controlnetloader_nodes = 0
         for key, value in params.items():
-            if key.startswith(controlnetloader_prefix):
-                if value["inputs"]["control_net_name"] == self.cfg(f"controlnet{unit}_model", str):
+            if key.startswith(controlnetloader_prefix) or key.startswith(clipvisionloader_prefix):
+                if key.startswith(controlnetloader_prefix):
+                    model_in = "control_net_name"
+                else:
+                    model_in = "clip_name"
+                    is_controlnet = False
+                if value["inputs"][model_in] == self.cfg(f"controlnet{unit}_model", str):
                     model_node_exists = True
                     break
                 num_controlnetloader_nodes += 1
 
-        controlnetloader_node_id = f"{controlnetloader_prefix}+{num_controlnetloader_nodes}"
+        controlnetloader_node_id = f"{controlnetloader_prefix if is_controlnet else clipvisionloader_prefix}+{num_controlnetloader_nodes}"
         if not model_node_exists:
-            controlnet_loader_node = {
-                "class_type": "ControlNetLoader",
+            if preprocessor == "Revision":
+                controlnet_loader_node = {
+                "class_type": "CLIPVisionLoader",
                 "inputs": {
-                    "control_net_name": self.cfg(f"controlnet{unit}_model", str)
+                    "clip_name": self.cfg(f"controlnet{unit}_model", str)
                 }
             }
+            else:
+                controlnet_loader_node = {
+                    "class_type": "ControlNetLoader",
+                    "inputs": {
+                        "control_net_name": self.cfg(f"controlnet{unit}_model", str)
+                    }
+                }
             params.update({
                 controlnetloader_node_id: controlnet_loader_node
             })
 
-        if preprocessor_prefix != "None":
-            inputs = self.cfg(f"controlnet{unit}_inputs")
+        inputs = self.cfg(f"controlnet{unit}_inputs")
+        if preprocessor not in ["None", "Revision"]:
             inputs.update({"image": [imageloader_node_id, 0]})
 
-            if "Inpaint" in preprocessor_prefix:
+            if "Inpaint" in preprocessor:
                 inputs.update({"mask": [mask_node, mask_node_output_num]})
 
+            preprocessor_class = self.cfg(f"controlnet_preprocessors_info", str)[preprocessor]["name"]
             preprocessor_node = {
-                "class_type": f"{preprocessor_prefix}Preprocessor",
+                "class_type": preprocessor_class,
                 "inputs": inputs
             }
-            preprocessor_node_id = f"{preprocessor_prefix}+{unit}"
+            preprocessor_node_id = f"{preprocessor_class}+{unit}"
             params.update({
                 preprocessor_node_id: preprocessor_node
             })
+        #Apply controlnet or revision
+        if preprocessor == "Revision":
+            clip_vision_encode_node = {
+                "class_type": "CLIPVisionEncode",
+                "inputs": {
+                    "clip_vision": [
+                        controlnetloader_node_id,
+                        0
+                    ],
+                    "image": [
+                        imageloader_node_id,
+                        0
+                    ]
+                }
+            }
+            clip_vision_encode_node_id = f"{DEFAULT_NODE_IDS['CLIPVisionEncode']}+{unit}"
+            unclip_conditioning_node = {
+                "class_type": "unCLIPConditioning",
+                "inputs": {
+                    "strength": inputs["strength"],
+                    "noise_augmentation": inputs["noise_augmentation"],
+                    "conditioning": [
+                        prev if prev != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_pos']}",
+                        0
+                    ],
+                    "clip_vision_output": [
+                        clip_vision_encode_node_id,
+                        0
+                    ]
+                }
+            }
+            id = f"{DEFAULT_NODE_IDS['unCLIPConditioning']}+{unit}"
+            params.update({
+                clip_vision_encode_node_id: clip_vision_encode_node,
+                id: unclip_conditioning_node
+            })
+            return id, prev_neg #pos conditioning id, neg conditioning id
 
         apply_controlnet_node = {
             "class_type": "ControlNetApplyAdvanced",
@@ -761,7 +814,7 @@ class Client(QObject):
                     0
                 ],
                 "image": [
-                    imageloader_node_id if preprocessor_prefix == "None" else preprocessor_node_id,
+                    imageloader_node_id if preprocessor == "None" else preprocessor_node_id,
                     0    
                 ]
             }
@@ -769,7 +822,39 @@ class Client(QObject):
 
         id = f"{DEFAULT_NODE_IDS['ControlNetApplyAdvanced']}+{unit}"
         params.update({id: apply_controlnet_node})
-        return id
+        return id, id #pos conditioning id, neg conditioning id
+    
+    def set_controlnet_preprocessor_and_model_list(self, obj):
+        def set_preprocessors():
+            preprocessors_info = {}
+
+            for o in obj.values():
+                if "preprocessors" in o["category"].lower():
+                    name = o["display_name"].replace("Preprocessor", "") if o["display_name"] != "" else o["name"].replace("Preprocessor", "")
+                    preprocessors_info.update({
+                        name: {
+                            "class": o["name"], 
+                            "inputs": obj[o["name"]]["input"]["required"]
+                        }
+                    })
+                # Add revision 
+                if o["name"] == "unCLIPConditioning":
+                    preprocessors_info.update({
+                        "Revision": {
+                            "class": o["name"], 
+                            "inputs": obj[o["name"]]["input"]["required"]
+                        }
+                    })
+
+            self.cfg.set("controlnet_preprocessor_list", ["None"] + list(preprocessors_info.keys()))
+            self.cfg.set("controlnet_preprocessors_info", preprocessors_info)
+
+        def set_models():
+            model_list = obj["ControlNetLoader"]["input"]["required"]["control_net_name"][0] + obj["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
+            self.cfg.set("controlnet_model_list", ["None"] + model_list)
+
+        set_preprocessors()
+        set_models()
 
     def get_config(self):
         def check_response(obj, keys):
@@ -783,71 +868,51 @@ class Client(QObject):
                 for key in keys:
                     assert key in obj
                 on_success()
+                return True
             except:
                 self.status.emit(
                     f"{STATE_URLERROR}: incompatible response, are you running the right API?"
                 )
                 print("Invalid Response:\n", obj)
-                return
+                return False
 
-        def on_get_upscalers(obj):
-            try:
-                check_response(obj, ["LatentUpscale"])
-            except:
-                return
-            node = obj["LatentUpscale"]["input"]["required"]
-            self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
+        def on_get_response(obj):            
+            def get_upscalers():
+                node = obj["LatentUpscale"]["input"]["required"]
+                self.cfg.set("upscaler_methods_list", node["upscale_method"][0])
 
-        def on_get_upscaler_models(obj):
-            try:
-                check_response(obj, ["UpscaleModelLoader"])
-            except:
-                return
-            node = obj["UpscaleModelLoader"]["input"]["required"]
-            self.cfg.set("upscaler_model_list", node["model_name"][0])
+            def get_upscaler_models():
+                node = obj["UpscaleModelLoader"]["input"]["required"]
+                self.cfg.set("upscaler_model_list", node["model_name"][0])
 
-        def on_get_sampler_data(obj):
-            try:
-                check_response(obj, ["KSampler"])
-            except:
-                return
+            def get_sampler_data():
+                node = obj["KSampler"]["input"]["required"]
+                self.cfg.set("txt2img_sampler_list", node["sampler_name"][0])
+                self.cfg.set("img2img_sampler_list", node["sampler_name"][0])
+                self.cfg.set("inpaint_sampler_list", node["sampler_name"][0])
+                self.cfg.set("txt2img_scheduler_list", node["scheduler"][0])
+                self.cfg.set("img2img_scheduler_list", node["scheduler"][0])
+                self.cfg.set("inpaint_scheduler_list", node["scheduler"][0])
 
-            node = obj["KSampler"]["input"]["required"]
-            self.cfg.set("txt2img_sampler_list", node["sampler_name"][0])
-            self.cfg.set("img2img_sampler_list", node["sampler_name"][0])
-            self.cfg.set("inpaint_sampler_list", node["sampler_name"][0])
-            self.cfg.set("txt2img_scheduler_list", node["scheduler"][0])
-            self.cfg.set("img2img_scheduler_list", node["scheduler"][0])
-            self.cfg.set("inpaint_scheduler_list", node["scheduler"][0])
+            def get_models():
+                node = obj["CheckpointLoaderSimple"]["input"]["required"]
+                self.cfg.set("sd_model_list", node["ckpt_name"][0])
 
-        def on_get_models(obj):
-            try:
-                check_response(obj, ["CheckpointLoaderSimple"])
-            except:
-                return
+            def get_VAE():
+                node = obj["VAELoader"]["input"]["required"]
+                self.cfg.set("sd_vae_list", ["None"] + node["vae_name"][0])
 
-            node = obj["CheckpointLoaderSimple"]["input"]["required"]
-            self.cfg.set("sd_model_list", node["ckpt_name"][0])
+            if check_response(obj, ["LatentUpscale", "UpscaleModelLoader", 
+                        "KSampler", "CheckpointLoaderSimple", 
+                        "VAELoader", "ControlNetLoader", "CLIPVisionLoader"]):
+                get_upscalers()
+                get_upscaler_models()
+                get_sampler_data()
+                get_models()
+                get_VAE()
+                self.set_controlnet_preprocessor_and_model_list(obj)
 
-        def on_get_VAE(obj):
-            try:
-                check_response(obj, ["VAELoader"])
-            except:
-                return
-
-            node = obj["VAELoader"]["input"]["required"]
-            self.cfg.set("sd_vae_list", ["None"] + node["vae_name"][0])
-
-        self.get("/object_info/LatentUpscale",
-                 on_get_upscalers, ignore_no_connection=True)
-        self.get("/object_info/KSampler", on_get_sampler_data,
-                ignore_no_connection=True)
-        self.get("/object_info/CheckpointLoaderSimple",
-                 on_get_models, ignore_no_connection=True)
-        self.get("/object_info/UpscaleModelLoader",
-                 on_get_upscaler_models, ignore_no_connection=True)
-        self.get("/object_info/VAELoader",
-                 on_get_VAE, ignore_no_connection=True)
+        self.get("/object_info", on_get_response, ignore_no_connection=True)
 
     def get_controlnet_config(self):
         '''Get models and modules for ControlNet'''
@@ -856,34 +921,19 @@ class Client(QObject):
                 assert obj is not None
                 for key in keys:
                     assert key in obj
+                return True
             except:
                 self.status.emit(
                     f"{STATE_URLERROR}: incompatible response, are you running the right API?"
                 )
                 print("Invalid Response:\n", obj)
-                return
+                return False
+        
+        def on_get_response(obj):
+            if check_response(obj, ["ControlNetLoader", "CLIPVisionLoader"]):
+                self.set_controlnet_preprocessor_and_model_list(obj)
 
-        def set_model_list(obj):
-            check_response(obj, ["ControlNetLoader"])
-            model_list = obj["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
-            self.cfg.set("controlnet_model_list", ["None"] + model_list)
-
-        def set_preprocessor_list(obj):
-            check_response(obj)
-            preprocessors_info = {}
-
-            for o in obj.values():
-                if "preprocessors" in o["category"].lower():
-                    name = o["display_name"].replace("Preprocessor", "") if o["display_name"] != "" else o["name"].replace("Preprocessor", "")
-                    preprocessors_info.update({
-                        name: obj[o["name"]]["input"]["required"]
-                    })
-
-            self.cfg.set("controlnet_preprocessor_list", ["None"] + list(preprocessors_info.keys()))
-            self.cfg.set("controlnet_preprocessors_info", preprocessors_info)
-
-        self.get("object_info/ControlNetLoader", set_model_list)
-        self.get("object_info", set_preprocessor_list)
+        self.get("object_info", on_get_response, ignore_no_connection=True)
 
     def get_workflow(self, params, mode):
         image_data = {mode: {}}
