@@ -26,7 +26,7 @@ This plugin offers a (somewhat) user friendly UI which can allow the user to mak
 - Krita (of course).
 - ComfyUI (of course).
 - [The custom nodes from this repo](https://github.com/JasonS09/comfy_sd_krita_plugin_nodes)
-- [Fannovel16's ComfyUI controlnet preprocessors](https://github.com/Fannovel16/comfy_controlnet_preprocessors)
+- [Fannovel16's ComfyUI controlnet preprocessors](https://github.com/Fannovel16/comfyui_controlnet_aux)
 
 ### Installation
 
@@ -35,7 +35,7 @@ This plugin offers a (somewhat) user friendly UI which can allow the user to mak
 - Run the following:
   `git clone https://github.com/JasonS09/comfy_sd_krita_plugin_nodes`
 - Then run the following:
-  `git clone https://github.com/Fannovel16/comfy_controlnet_preprocessors`
+  `git clone https://github.com/Fannovel16/comfyui_controlnet_aux`
 
 #### The plugin
 - Clone this repo somewhere: `https://github.com/JasonS09/comfy_sd_krita_plugin`
