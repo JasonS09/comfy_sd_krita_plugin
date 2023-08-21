@@ -153,7 +153,6 @@ class ConfigPage(QWidget):
         self.base_url.textChanged.connect(partial(script.cfg.set, "base_url"))
         # NOTE: this triggers on every keystroke; theres no focus lost signal...
         self.base_url.textChanged.connect(lambda: script.action_update_config())
-        self.base_url.textChanged.connect(lambda: script.action_update_controlnet_config())
         self.base_url_reset.released.connect(
             lambda: self.base_url.setText(DEFAULTS.base_url)
         )

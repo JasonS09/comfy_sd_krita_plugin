@@ -230,37 +230,32 @@ class Client(QObject):
 
         def on_history_received(history_res):
             images_output = []
+            images_received = [] #store all the images received in a list
 
             def on_image_received(img):
                 assert img is not None, "Backend Error, check terminal"
                 qimage = QImage()
                 qimage.loadFromData(img)
                 images_output.append(img_to_b64(qimage))
+                # Check if all images are in the list before sending the response to script.
+                if len(images_received) == len(images_output):
+                    response = craft_response(images_output, history, names)
+                    self.images_received.emit(response)
+
 
             assert history_res is not None, "Backend Error, check terminal"
             history = history_res[prompt_id] if prompt_id is not None else history_res[list(history_res.keys())[-1]]
             names = []
-            i = 0
+            #count images in response
             for node_id in history['outputs']:
                 node_output = history['outputs'][node_id]
                 if 'images' in node_output:
                     for image in node_output['images']:
-                        i += 1
-                        self.get_image(
-                            image['filename'], image['subfolder'], image['type'], on_image_received)
                         names.append(image["filename"])
+                        images_received.append(image)
 
-            # Check if all images are in the list before sending the response to script.
-            def check_if_populated():
-                if len(images_output) == i:
-                    timer.stop()
-                    response = craft_response(images_output, history, names)
-                    self.images_received.emit(response)
-
-            if i != 0:
-                timer = QTimer()
-                timer.timeout.connect(check_if_populated)
-                timer.start(50)
+            for image in images_received:
+                self.get_image(image['filename'], image['subfolder'], image['type'], on_image_received)
 
         if status == STATE_DONE or skip_status_check:
             # Prevent undesired executions of this function.

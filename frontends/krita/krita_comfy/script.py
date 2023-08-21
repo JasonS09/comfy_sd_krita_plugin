@@ -97,6 +97,11 @@ class Script(QObject):
     def stop_update_timer(self, status):
         if status == STATE_DONE or self.client.interrupted \
             or not self.client.is_connected:
+            if self.client.interrupted or not self.client.is_connected:
+                    try:
+                        self.client.status.disconnect(self.client.conn)
+                    except TypeError:
+                        pass # signal was not connected
             self.eta_timer.stop()
 
     def update_status_bar_eta(self, progress):
@@ -642,6 +647,10 @@ class Script(QObject):
         return self.apply_get_workflow(mode)
     
     def action_get_last_images(self):
+        self.update_selection()
+        if not self.doc:
+            return
+        self.adjust_selection()
         self.apply_get_last_images()
 
     def action_update_eta(self):
