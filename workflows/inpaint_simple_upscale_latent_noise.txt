@@ -1,0 +1,165 @@
+Use this inpainting workflow to make generations without the second KSampler pass and instead applying only a simple upscale. Replace your-model with your actual model for the first nodes. This version uses VAEEncodeForInpaint, so should be the preferred workflow for inpainting with latent noise mode.
+{
+    "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {
+            "ckpt_name": "your-model.safetensors"
+        }
+    },
+    "UpscaleModelLoader": {
+        "class_type": "UpscaleModelLoader",
+        "inputs": {
+            "model_name": "your-upscale-model.pth"
+        }
+    },
+    "SaveImage": {
+        "class_type": "SaveImage",
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "ImageScale",
+                0
+            ]
+        }
+    },
+    "ClipSetLastLayer": {
+        "class_type": "CLIPSetLastLayer",
+        "inputs": {
+            "stop_at_clip_layer": -1,
+            "clip": [
+                "4",
+                1
+            ]
+        }
+    },
+    "3": {
+        "class_type": "KSampler",
+        "inputs": {
+            "cfg": 8,
+            "denoise": 1.0,
+            "model": [
+                "4",
+                0
+            ],
+            "latent_image": [
+                "VAEEncodeForInpaint",
+                0
+            ],
+            "negative": [
+                "7",
+                0
+            ],
+            "positive": [
+                "6",
+                0
+            ],
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
+            "seed": 1233356292898011671,
+            "steps": 20
+        }
+    },
+    "LoadBase64Image": {
+        "class_type": "LoadBase64Image",
+        "inputs": {
+            "image": "<<SelectedImage>>"
+        }
+    },
+    "LoadBase64ImageMask": {
+        "class_type": "LoadBase64ImageMask",
+        "inputs": {
+            "image": "<<CurrentLayerAsMask>>",
+            "channel": "alpha"
+        }
+    },
+    "VAEEncodeForInpaint": {
+        "class_type": "VAEEncodeForInpaint",
+        "inputs": {
+            "grow_mask_by": 6,
+            "pixels": [
+                "LoadBase64Image",
+                0
+            ],
+            "mask": [
+                "LoadBase64ImageMask",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    },
+    "6": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": [
+                "ClipSetLastLayer",
+                0
+            ],
+            "text": "<<Prompt>>"
+        }
+    },
+    "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": [
+                "ClipSetLastLayer",
+                0
+            ],
+            "text": "<<NegativePrompt>>"
+        }
+    },
+    "VAEDecode_upscale": {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    },
+    "ImageUpscaleWithModel": {
+        "class_type": "ImageUpscaleWithModel",
+        "inputs": {
+            "upscale_model": [
+                "UpscaleModelLoader",
+                0
+            ],
+            "image": [
+                "VAEDecode_upscale",
+                0
+            ]
+        }
+    },
+    "ImageScale": {
+        "class_type": "ImageScale",
+        "inputs": {
+            "upscale_method": "bilinear",
+            "width": 1666,
+            "height": 1666,
+            "crop": "disabled",
+            "image": [
+                "ImageUpscaleWithModel",
+                0
+            ]
+        }
+    },
+    "VAEEncode_upscale": {
+        "class_type": "VAEEncode",
+        "inputs": {
+            "pixels": [
+                "ImageScale",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    }
+}
