@@ -1582,10 +1582,10 @@ class Client(QObject):
 
     def post_controlnet_preview(self, cb, src_img):
         unit = self.cfg("controlnet_unit", int)
-        preprocessor_prefix = self.cfg(f"controlnet{unit}_preprocessor", str)
+        preprocessor = self.cfg(f"controlnet{unit}_preprocessor", str)
         try:
-            assert "Inpaint" not in preprocessor_prefix
-            assert "Reference" not in preprocessor_prefix
+            assert "Inpaint" not in preprocessor
+            assert "Reference" not in preprocessor
         except:
             self.status.emit(
                     "Preprocessor not supported for preview."
@@ -1602,8 +1602,9 @@ class Client(QObject):
         inputs.update({"image": [
             DEFAULT_NODE_IDS['ControlNetImageLoader'], 0
         ]})
+        preprocessor_class = self.cfg(f"controlnet_preprocessors_info", dict)[preprocessor]["class"]
         preprocessor_node = {
-            "class_type": f"{preprocessor_prefix}Preprocessor",
+            "class_type": preprocessor_class,
             "inputs": inputs
         }
         saveimage_node = {
@@ -1611,7 +1612,7 @@ class Client(QObject):
             "inputs": {
                 "filename_prefix": "ComfyUI",
                 "images": [
-                    preprocessor_prefix,
+                    preprocessor_class,
                     0
                 ]
             }
@@ -1619,7 +1620,7 @@ class Client(QObject):
 
         params = {
             DEFAULT_NODE_IDS['ControlNetImageLoader']: loadimage_node,
-            preprocessor_prefix: preprocessor_node,
+            preprocessor_class: preprocessor_node,
             DEFAULT_NODE_IDS['SaveImage']: saveimage_node
         }
 
