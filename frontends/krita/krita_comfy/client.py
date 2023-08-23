@@ -809,7 +809,7 @@ class Client(QObject):
                     0
                 ],
                 "image": [
-                    imageloader_node_id,# if preprocessor == "None" else preprocessor_node_id,
+                    imageloader_node_id if preprocessor == "None" else preprocessor_node_id,
                     0    
                 ]
             }

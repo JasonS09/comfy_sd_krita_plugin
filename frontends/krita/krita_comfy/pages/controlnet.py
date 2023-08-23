@@ -197,6 +197,7 @@ class ControlNetUnitSettings(QWidget):
 
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
+        script.cfg.set(f"controlnet{self.unit}_inputs", dict())
         if script.cfg(f"controlnet{self.unit}_preprocessor", str) == "Revision":
             self.hide_weight_and_guidance()
         else:
