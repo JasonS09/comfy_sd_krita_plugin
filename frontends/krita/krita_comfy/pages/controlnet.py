@@ -161,7 +161,7 @@ class ControlNetUnitSettings(QWidget):
         if value is not None:
             widget.qspin.setValue(value)
         widget.qspin.valueChanged.connect(
-            lambda value: self.set_input(inputs, key, value)
+            lambda value: self.set_input(dict(script.cfg(f"controlnet{self.unit}_inputs", dict)), key, value)
         )
         self.set_input(inputs, key, widget.qspin.value())
         self.preprocessor_settings_layout.addLayout(widget)
@@ -174,7 +174,7 @@ class ControlNetUnitSettings(QWidget):
             widget.qcombo.setEditText(value)
         widget.qcombo.addItems(options)
         widget.qcombo.editTextChanged.connect(
-            lambda value: self.set_input(inputs, key, value)
+            lambda value: self.set_input(dict(script.cfg(f"controlnet{self.unit}_inputs", dict)), key, value)
         )
         self.set_input(inputs, key, widget.qcombo.currentText())
         self.preprocessor_settings_layout.addLayout(widget)
