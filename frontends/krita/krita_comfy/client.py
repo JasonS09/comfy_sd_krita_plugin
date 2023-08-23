@@ -743,7 +743,7 @@ class Client(QObject):
             if "Inpaint" in preprocessor:
                 inputs.update({"mask": [mask_node, mask_node_output_num]})
 
-            preprocessor_class = self.cfg(f"controlnet_preprocessors_info", str)[preprocessor]["name"]
+            preprocessor_class = self.cfg(f"controlnet_preprocessors_info", dict)[preprocessor]["class"]
             preprocessor_node = {
                 "class_type": preprocessor_class,
                 "inputs": inputs
@@ -809,7 +809,7 @@ class Client(QObject):
                     0
                 ],
                 "image": [
-                    imageloader_node_id if preprocessor == "None" else preprocessor_node_id,
+                    imageloader_node_id,# if preprocessor == "None" else preprocessor_node_id,
                     0    
                 ]
             }
