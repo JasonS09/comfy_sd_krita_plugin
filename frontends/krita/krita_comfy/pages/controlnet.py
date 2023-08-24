@@ -102,7 +102,7 @@ class ControlNetUnitSettings(QWidget):
         self.refresh_button = QPushButton("Refresh")
 
         self.weight_layout = QSpinBoxLayout(
-            script.cfg, f"controlnet{self.unit}_weight", label="Weight:", min=0, max=2, step=0.05
+            script.cfg, f"controlnet{self.unit}_weight", label="Weight:", min=0, max=10, step=0.05
         )
         self.guidance_start_layout = QSpinBoxLayout(
             script.cfg, f"controlnet{self.unit}_guidance_start", label="Guidance start:", min=0, max=1, step=0.01
@@ -283,3 +283,4 @@ class ControlNetUnitSettings(QWidget):
         self.copy_result_button.released.connect(self.copy_result_released)
         self.annotator_clear_button.released.connect(lambda: self.annotator_preview.setPixmap(QPixmap()))
         script.controlnet_preview_annotator_received.connect(self.annotator_preview_received)
+
