@@ -221,7 +221,7 @@ class Client(QObject):
                     output += f"\n<lora:{lora_name}:{lora_weight}>"
                     lora_loader_count += 1
                     node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
-            except KeyError:
+            except (KeyError, ValueError, IndexError):
                 return output
 
         def craft_response(images, history, names):
