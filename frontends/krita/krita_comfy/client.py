@@ -215,13 +215,12 @@ class Client(QObject):
             try:
                 nodes = history["prompt"][2]
                 node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
-                while node_inputs is not None:
+                while True:
                     lora_name = node_inputs["lora_name"]
                     lora_weight = node_inputs["strength_model"]
                     output += f"\n<lora:{lora_name}:{lora_weight}>"
                     lora_loader_count += 1
                     node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
-                return output
             except KeyError:
                 return output
 
