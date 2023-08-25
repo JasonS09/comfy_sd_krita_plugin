@@ -801,8 +801,8 @@ class Client(QObject):
                     0
                 ],
                 "negative": [
-                    prev if prev != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_neg']}",
-                    1 if prev != "" else 0
+                    prev_neg if prev_neg != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_neg']}",
+                    1 if prev_neg != "" else 0
                 ],
                 "control_net": [
                     controlnetloader_node_id,
