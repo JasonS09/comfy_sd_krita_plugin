@@ -208,11 +208,27 @@ class Client(QObject):
             assert False, e
 
     def receive_images(self, status, prompt_id=None, skip_status_check=False):
+        def add_loras_from_history(history):
+            node_name = DEFAULT_NODE_IDS["LoraLoader"]
+            output = ""
+            lora_loader_count = 1
+            try:
+                nodes = history["prompt"][2]
+                node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
+                while True:
+                    lora_name = node_inputs["lora_name"].removesuffix(".safetensors")
+                    lora_weight = node_inputs["strength_model"]
+                    output += f"\n<lora:{lora_name}:{lora_weight}>"
+                    lora_loader_count += 1
+                    node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
+            except (KeyError, ValueError, IndexError):
+                return output
+
         def craft_response(images, history, names):
             try:
                 return {
                     "info": {
-                        "prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"],
+                        "prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"].strip() + add_loras_from_history(history),
                         "negative_prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["text"],
                         "sd_model": history["prompt"][2][DEFAULT_NODE_IDS["CheckpointLoaderSimple"]]["inputs"]["ckpt_name"],
                         "sampler_name": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["sampler_name"],
