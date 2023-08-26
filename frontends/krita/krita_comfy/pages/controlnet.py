@@ -79,7 +79,7 @@ class ControlNetUnitSettings(QWidget):
 
         self.image_loader = ImageLoaderLayout()
         input_image = script.cfg(f"controlnet{self.unit}_input_image", str)
-        self.image_loader.preview.setPixmap(
+        self.image_loader.set_pixmap(
             QPixmap.fromImage(b64_to_img(input_image) if input_image else QImage())
         )
 
@@ -121,6 +121,7 @@ class ControlNetUnitSettings(QWidget):
         #Preview annotator
         self.annotator_preview = QLabel()
         self.annotator_preview.setAlignment(Qt.AlignCenter)
+        self.annotator_preview.setMinimumWidth(256)
         self.annotator_preview_button = QPushButton("Preview annotator")
         self.annotator_clear_button = QPushButton("Clear preview")
         self.copy_result_button = QPushButton("Copy result to clipboard")
@@ -228,7 +229,7 @@ class ControlNetUnitSettings(QWidget):
             script.action_update_controlnet_config()
 
     def image_loaded(self):
-        image = self.image_loader.preview.pixmap().toImage().convertToFormat(QImage.Format_RGBA8888)
+        image = self.image_loader.get_pixmap().toImage().convertToFormat(QImage.Format_RGBA8888)
         script.cfg.set(f"controlnet{self.unit}_input_image", img_to_b64(image)) 
 
     def annotator_preview_received(self, pixmap):
