@@ -132,7 +132,7 @@ class AsyncRequest(QObject):
                 enc_type = res.getheader("X-Encrypted-Body", None)
                 assert enc_type in {"XOR", None}, "Unknown server encryption!"
                 if enc_type == "XOR":
-                    assert self.key, f"Key needed to decrypt server response!"
+                    assert self.key, "Key needed to decrypt server response!"
                     print(f"Decrypting with ${self.key}:\n{data}")
                     data = bytewise_xor(data, self.key)
                 self.result.emit(json.loads(data))
@@ -279,7 +279,7 @@ class Client(QObject):
         if prompt_id is not None:
             self.get(f"history/{prompt_id}", cb)
         else:
-            self.get(f"history", cb)
+            self.get("history", cb)
 
     def check_progress(self, cb):
         def on_progress_checked(res):
@@ -565,7 +565,7 @@ class Client(QObject):
         upscalemodelloader_node = {
             "class_type": "UpscaleModelLoader",
             "inputs": {
-                "model_name": self.cfg(f"upscaler_name", str)
+                "model_name": self.cfg("upscaler_name", str)
             }
         }
         imageupscalewithmodel_node = {
@@ -743,7 +743,7 @@ class Client(QObject):
             if "Inpaint" in preprocessor:
                 inputs.update({"mask": [mask_node, mask_node_output_num]})
 
-            preprocessor_class = self.cfg(f"controlnet_preprocessors_info", dict)[preprocessor]["class"]
+            preprocessor_class = self.cfg("controlnet_preprocessors_info", dict)[preprocessor]["class"]
             preprocessor_node = {
                 "class_type": preprocessor_class,
                 "inputs": inputs
@@ -801,8 +801,8 @@ class Client(QObject):
                     0
                 ],
                 "negative": [
-                    prev if prev != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_neg']}",
-                    1 if prev != "" else 0
+                    prev_neg if prev_neg != "" else f"{DEFAULT_NODE_IDS['ClipTextEncode_neg']}",
+                    1 if prev_neg != "" else 0
                 ],
                 "control_net": [
                     controlnetloader_node_id,
@@ -1602,7 +1602,7 @@ class Client(QObject):
         inputs.update({"image": [
             DEFAULT_NODE_IDS['ControlNetImageLoader'], 0
         ]})
-        preprocessor_class = self.cfg(f"controlnet_preprocessors_info", dict)[preprocessor]["class"]
+        preprocessor_class = self.cfg("controlnet_preprocessors_info", dict)[preprocessor]["class"]
         preprocessor_node = {
             "class_type": preprocessor_class,
             "inputs": inputs
