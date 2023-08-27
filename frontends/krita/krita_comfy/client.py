@@ -219,9 +219,9 @@ class Client(QObject):
                 while True:
                     lora_name = re.sub(".safetensors", "", node_inputs["lora_name"])
                     lora_weight = node_inputs["strength_model"]
-                    #Let's not use "<" and ">" signs here since the content between it will be totally removed somewhere during
-                    #Group later name setting. Trying to escape characters didn't seem to work, so let's just list the loras.
-                    output += f" lora:{lora_name}:{lora_weight}" 
+                    # < > are hidden from the lable names but are still in the string
+                    # I think krita is trying to hide XML from the user
+                    output += f"\n<lora:{lora_name}:{lora_weight}>"
                     lora_loader_count += 1
                     node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
             except (KeyError, ValueError, IndexError):
@@ -448,6 +448,20 @@ class Client(QObject):
 
         return params
 
+    def auto_complete_LoRA(self, name: str):
+        lora_list = [ l.removesuffix(".safetensors") for l in self.cfg("sd_lora_list", str)]
+        viable_loras = [l for l in lora_list if l.endswith(name)]
+        if (len(viable_loras) == 1 and name == viable_loras[0]):
+            return name
+        elif (len(viable_loras) == 1):
+            print("Using Lora:", viable_loras[0])
+            return viable_loras[0]
+        elif (len(viable_loras) > 1):
+            print("Ambiguous Lora:", name, "\nCould be:", viable_loras )
+        return name
+
+
+
     def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
         clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         checkpointloadersimple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
@@ -464,7 +478,7 @@ class Client(QObject):
             pos_prompt = self.cfg(f"{mode}_prompt", str)
 
             # Use a regular expression to find all the elements between < and > in the string
-            pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
+            pattern = r"<lora:([=\[\] /\w\d.-]+):(\-?[\d.]+)>"
             matches = re.findall(pattern, pos_prompt)
 
             # Remove LoRAs from prompt
@@ -473,7 +487,7 @@ class Client(QObject):
             # Loop through the matches and create a node for each element
             for match in matches:
                 # Extract the lora name and the strength number from the match
-                lora_name = match[0]
+                lora_name = self.auto_complete_LoRA(match[0])
                 strength_number = float(match[1])
 
                 # Create a node dictionary with the class type, inputs, and outputs
@@ -516,10 +530,10 @@ class Client(QObject):
                     #Connect KSampler for upscale (second pass) to last lora node if found.
                     if ksampler_upscale_id in params:
                         params[ksampler_upscale_id]["inputs"]["model"] = [last_lora_id, 0]
-                
+
                     #Connect positive prompt to lora clip.
                     params[cliptextencode_pos_id]["inputs"]["clip"] = [last_lora_id, 1]
-                    
+
                     #Connect negative prompt to lora clip.
                     params[cliptextencode_neg_id]["inputs"]["clip"] = [last_lora_id, 1]
 
@@ -958,13 +972,18 @@ class Client(QObject):
                 node = obj["VAELoader"]["input"]["required"]
                 self.cfg.set("sd_vae_list", ["None"] + node["vae_name"][0])
 
-            if check_response(obj, ["LatentUpscale", "UpscaleModelLoader", 
+            def get_loras():
+                node = obj["LoraLoader"]["input"]["required"]
+                self.cfg.set("sd_lora_list", node["lora_name"][0])
+
+            if check_response(obj, ["LatentUpscale", "UpscaleModelLoader",
                         "KSampler", "CheckpointLoaderSimple", 
-                        "VAELoader", "ControlNetLoader", "CLIPVisionLoader"]):
+                        "VAELoader", "ControlNetLoader", "CLIPVisionLoader", "LoraLoader"]):
                 get_upscalers()
                 get_upscaler_models()
                 get_sampler_data()
                 get_models()
+                get_loras()
                 get_VAE()
                 self.set_controlnet_preprocessor_and_model_list(obj)
 
@@ -1025,7 +1044,7 @@ class Client(QObject):
         loras_loaded = False
 
         def remove_lora_from_prompt():
-            pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
+            pattern = r"<lora:([=\[\] /\w\d.-]+):(\-?[\d.]+)>"
             return re.sub(pattern, "", prompt)
 
         def load_placeholder_data():
@@ -1066,7 +1085,7 @@ class Client(QObject):
                     loras_loaded = True
 
             return json.loads(str_params) if str_params != "" else params
-        
+
         if model_loader_found:
             params[model_loader_id]["inputs"]["ckpt_name"] = self.cfg("sd_model", str)
 
