@@ -20,29 +20,31 @@ from krita import (
 
 from .config import Config
 from .defaults import (
+    CURRENT_LAYER_AS_MASK,
+    DEFAULT_NODE_IDS,
     ERR_BAD_URL,
-    ERR_NO_CONNECTION,
     ERR_MISSING_NODE,
+    ERR_NO_CONNECTION,
+    LAST_LOADED_LORA,
     LONG_TIMEOUT,
+    NEGATIVE_PROMPT,
+    PROMPT,
+    PRUNED_DATA,
     ROUTE_PREFIX,
+    SELECTED_IMAGE,
     SHORT_TIMEOUT,
     STATE_DONE,
     STATE_READY,
     STATE_URLERROR,
     THREADED,
-    DEFAULT_NODE_IDS,
-    PRUNED_DATA,
-    SELECTED_IMAGE,
-    CURRENT_LAYER_AS_MASK,
-    LAST_LOADED_LORA,
-    PROMPT,
-    NEGATIVE_PROMPT
 )
 from .utils import (
     bytewise_xor,
     img_to_b64,
     calculate_resized_image_dimensions
 )
+
+from .prompt import PromptResponse
 
 # NOTE: backend queues up responses, so no explicit need to block multiple requests
 # except to prevent user from spamming themselves
@@ -211,72 +213,22 @@ class Client(QObject):
             assert False, e
 
     def receive_images(self, status, prompt_id=None, skip_status_check=False):
-        def add_loras_from_history(history):
-            node_name = DEFAULT_NODE_IDS["LoraLoader"]
-            output = ""
-            lora_loader_count = 1
-            try:
-                nodes = history["prompt"][2]
-                node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
-                while True:
-                    lora_name = re.sub(".safetensors", "", node_inputs["lora_name"])
-                    lora_weight = node_inputs["strength_model"]
-                    # < > are hidden from the lable names but are still in the string
-                    # I think krita is trying to hide XML from the user
-                    output += f"\n<lora:{lora_name}:{lora_weight}>"
-                    lora_loader_count += 1
-                    node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
-            except (KeyError, ValueError, IndexError):
-                return output
-
-        def craft_response(images, history, names):
-            try:
-                return {
-                    "info": {
-                        "prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"].strip() + add_loras_from_history(history),
-                        "negative_prompt": history["prompt"][2][DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["text"],
-                        "sd_model": history["prompt"][2][DEFAULT_NODE_IDS["CheckpointLoaderSimple"]]["inputs"]["ckpt_name"],
-                        "sampler_name": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["sampler_name"],
-                        "cfg_scale": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["cfg"],
-                        "steps": history["prompt"][2][DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"],
-                        "all_names": names
-                    },
-                    "outputs": images
-                }
-            except KeyError:
-                return {
-                    "info": {},
-                    "outputs": images
-                }
-
         def on_history_received(history_res):
-            images_output = []
-            images_received = [] #store all the images received in a list
-
             def on_image_received(img):
                 assert img is not None, "Backend Error, check terminal"
                 qimage = QImage()
                 qimage.loadFromData(img)
-                images_output.append(img_to_b64(qimage))
-                # Check if all images are in the list before sending the response to script.
-                if len(images_received) == len(images_output):
-                    response = craft_response(images_output, history, names)
+                response.append_image(qimage)
+                # Check if all images are in the response before sending to the script.
+                if len(response.images) == len(response.image_info):
                     self.images_received.emit(response)
-
 
             assert history_res is not None, "Backend Error, check terminal"
             history = history_res[prompt_id] if prompt_id is not None else history_res[list(history_res.keys())[-1]]
-            names = []
-            #count images in response
-            for node_id in history['outputs']:
-                node_output = history['outputs'][node_id]
-                if 'images' in node_output:
-                    for image in node_output['images']:
-                        names.append(image["filename"])
-                        images_received.append(image)
+            response = PromptResponse.from_history_json(history)
 
-            for image in images_received:
-                self.get_image(image['filename'], image['subfolder'], image['type'], on_image_received)
+            for image in response.image_info:
+                self.get_image(image[0], image[1], image[2], on_image_received)
 
         if status == STATE_DONE or skip_status_check:
             # Prevent undesired executions of this function.

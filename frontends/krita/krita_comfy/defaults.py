@@ -34,6 +34,7 @@ ERR_NO_DOCUMENT = "No document open yet!"
 ERR_NO_CONNECTION = "Cannot reach backend!"
 ERR_BAD_URL = "Invalid backend URL!"
 ERR_MISSING_NODE = "Required node missing in workflow."
+ERR_MISSING_PROMPT = "Layer has invalid prompt information"
 
 # tab IDs
 TAB_SDCOMMON = "krita_diff_sdcommon"
