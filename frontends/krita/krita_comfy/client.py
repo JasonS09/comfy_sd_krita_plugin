@@ -2,7 +2,7 @@ import json
 import socket
 import uuid
 import re
-from math import ceil
+from math import ceil, floor
 from random import randint
 from typing import Any
 from urllib.error import URLError
@@ -22,6 +22,7 @@ from .config import Config
 from .defaults import (
     ERR_BAD_URL,
     ERR_NO_CONNECTION,
+    ERR_MISSING_NODE,
     LONG_TIMEOUT,
     ROUTE_PREFIX,
     SHORT_TIMEOUT,
@@ -365,6 +366,16 @@ class Client(QObject):
             method="GET"
         )
 
+    def check_params(self, params, keys):
+        "Check if the defined nodes exist in params"
+        for key in keys:
+            try:
+                assert key in params
+            except:
+                self.status.emit(ERR_MISSING_NODE)
+                return False
+        return True
+
     def common_params(self):
         """Parameters used by most modes."""
         checkpointloadersimple_node = {
@@ -436,238 +447,244 @@ class Client(QObject):
         return params
 
     def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
-        '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work'''
+        clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
+        checkpointloadersimple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        ksampler_upscale_id = DEFAULT_NODE_IDS["KSampler_upscale"]
+        cliptextencode_pos_id = DEFAULT_NODE_IDS["ClipTextEncode_pos"]
+        cliptextencode_neg_id = DEFAULT_NODE_IDS["ClipTextEncode_neg"]
 
-        # Initialize a counter to keep track of the number of nodes added
-        lora_count = 0
-        pos_prompt = self.cfg(f"{mode}_prompt", str)
+        if not connect_last_lora_outputs or self.check_params(params, [
+            ksampler_id, cliptextencode_pos_id, cliptextencode_neg_id
+            ]):
+            # Initialize a counter to keep track of the number of nodes added
+            lora_count = 0
+            pos_prompt = self.cfg(f"{mode}_prompt", str)
 
-        # Use a regular expression to find all the elements between < and > in the string
-        pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
-        matches = re.findall(pattern, pos_prompt)
+            # Use a regular expression to find all the elements between < and > in the string
+            pattern = r"<lora:([=\[\] /\w\d.-]+):([\d.]+)>"
+            matches = re.findall(pattern, pos_prompt)
 
-        # Remove LoRAs from prompt
-        params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["text"] = re.sub(pattern, "", pos_prompt)
+            # Remove LoRAs from prompt
+            params[cliptextencode_pos_id]["inputs"]["text"] = re.sub(pattern, "", pos_prompt)
 
-        # Loop through the matches and create a node for each element
-        for match in matches:
-            # Extract the lora name and the strength number from the match
-            lora_name = match[0]
-            strength_number = float(match[1])
+            # Loop through the matches and create a node for each element
+            for match in matches:
+                # Extract the lora name and the strength number from the match
+                lora_name = match[0]
+                strength_number = float(match[1])
 
-            # Create a node dictionary with the class type, inputs, and outputs
-            clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
-            clip = clipsetlastlayer_id if clipsetlastlayer_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
-            prev_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
-            node = {
-                "class_type": "LoraLoader",
+                # Create a node dictionary with the class type, inputs, and outputs
+                clip = clipsetlastlayer_id if clipsetlastlayer_id in params else checkpointloadersimple_id
+                prev_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
+                node = {
+                    "class_type": "LoraLoader",
+                    "inputs": {
+                        "lora_name": f"{lora_name}.safetensors",
+                        "strength_model": strength_number,
+                        "strength_clip": strength_number,
+                        # If this is the first node, use the default model and clip parameters
+                        # Otherwise, use the previous node id as the model and clip parameters
+                        "model": [
+                            checkpointloadersimple_id if lora_count == 0 else prev_lora_id,
+                            0
+                        ],
+                        "clip": [
+                            clip if lora_count == 0 else prev_lora_id,
+                            1 if lora_count > 0 or clipsetlastlayer_id not in params else 0
+                        ]
+                    }
+                }
+
+                # Generate a node id by adding the node count to the default node id
+                node_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count+1}"
+
+                # Add the node to the params dictionary with the node id as the key
+                params.update({node_id: node})
+
+                # Increment the node count by one
+                lora_count += 1
+
+            if lora_count > 0:
+                last_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
+                if connect_last_lora_outputs:
+                    #Connect KSampler to last lora node.
+                    params[ksampler_id]["inputs"]["model"] = [last_lora_id, 0]
+
+                    #Connect KSampler for upscale (second pass) to last lora node if found.
+                    if ksampler_upscale_id in params:
+                        params[ksampler_upscale_id]["inputs"]["model"] = [last_lora_id, 0]
+                
+                    #Connect positive prompt to lora clip.
+                    params[cliptextencode_pos_id]["inputs"]["clip"] = [last_lora_id, 1]
+                    
+                    #Connect negative prompt to lora clip.
+                    params[cliptextencode_neg_id]["inputs"]["clip"] = [last_lora_id, 1]
+
+                return last_lora_id
+
+    def upscale_latent(self, params, width, height, seed, cfg_prefix):
+        ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
+
+        if self.check_params(params, [ksampler_id, vaedecode_id]):
+            latentupscale_node = {
+                "class_type": "LatentUpscale",
                 "inputs": {
-                    "lora_name": f"{lora_name}.safetensors",
-                    "strength_model": strength_number,
-                    "strength_clip": strength_number,
-                    # If this is the first node, use the default model and clip parameters
-                    # Otherwise, use the previous node id as the model and clip parameters
+                    "upscale_method": self.cfg("upscaler_name", str),
+                    "width": width,
+                    "height": height,
+                    "crop": "disabled",
+                    "samples": [ksampler_id, 0]
+                }
+            }
+            denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
+            ksampler_upscale_node = {
+                "class_type": "KSampler",
+                "inputs": {
+                    "cfg": 8,
+                    "denoise": denoise if denoise < 1 else 0.30,
                     "model": [
-                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"] if lora_count == 0 else prev_lora_id,
+                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                         0
                     ],
-                    "clip": [
-                        clip if lora_count == 0 else prev_lora_id,
-                        1 if lora_count > 0 or clipsetlastlayer_id not in params else 0
+                    "latent_image": [
+                        DEFAULT_NODE_IDS["LatentUpscale"],
+                        0
+                    ],
+                    "negative": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                        0
+                    ],
+                    "positive": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                        0
+                    ],
+                    "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
+                    "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
+                    "seed": seed,
+                    "steps": ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
+                }
+            }
+            params.update({
+                DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
+                DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+            })
+            params[vaedecode_id]["inputs"]["samples"] = [
+                DEFAULT_NODE_IDS["KSampler_upscale"],
+                0
+            ]
+            params[ksampler_id]["inputs"]["steps"] = ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
+
+    def upscale_with_model(self, params, width, height, seed, mode):
+        vae_id = DEFAULT_NODE_IDS["VAELoader"]
+        vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
+        ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+
+        if self.check_params(params, [vaedecode_id, ksampler_id]):
+            vaedecode_upscale_node = {
+                "class_type": "VAEDecode",
+                "inputs": {
+                    "samples": [
+                        DEFAULT_NODE_IDS["KSampler"],
+                        0
+                    ],
+                    "vae": [
+                        vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0 if vae_id in params else 2
                     ]
                 }
             }
-
-            # Generate a node id by adding the node count to the default node id
-            node_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count+1}"
-
-            # Add the node to the params dictionary with the node id as the key
-            params.update({node_id: node})
-
-            # Increment the node count by one
-            lora_count += 1
-
-        if lora_count > 0:
-            last_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
-            if connect_last_lora_outputs:
-                #Connect KSampler to last lora node.
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["model"] = [last_lora_id, 0]
-
-                #Connect KSampler for upscale (second pass) to last lora node if found.
-                if DEFAULT_NODE_IDS["KSampler_upscale"] in params:
-                    params[DEFAULT_NODE_IDS["KSampler_upscale"]]["inputs"]["model"] = [last_lora_id, 0]
-            
-                #Connect positive prompt to lora clip.
-                params[DEFAULT_NODE_IDS["ClipTextEncode_pos"]]["inputs"]["clip"] = [last_lora_id, 1]
-                
-                #Connect negative prompt to lora clip.
-                params[DEFAULT_NODE_IDS["ClipTextEncode_neg"]]["inputs"]["clip"] = [last_lora_id, 1]
-
-            return last_lora_id
-
-    def upscale_latent(self, params, width, height, seed, cfg_prefix):
-        '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work'''
-        latentupscale_node = {
-            "class_type": "LatentUpscale",
-            "inputs": {
-                "upscale_method": self.cfg("upscaler_name", str),
-                "width": width,
-                "height": height,
-                "crop": "disabled",
-                "samples": [
-                        DEFAULT_NODE_IDS["KSampler"],
+            upscalemodelloader_node = {
+                "class_type": "UpscaleModelLoader",
+                "inputs": {
+                    "model_name": self.cfg("upscaler_name", str)
+                }
+            }
+            imageupscalewithmodel_node = {
+                "class_type": "ImageUpscaleWithModel",
+                "inputs": {
+                    "upscale_model": [
+                        DEFAULT_NODE_IDS["UpscaleModelLoader"],
                         0
-                ]
+                    ],
+                    "image": [
+                        DEFAULT_NODE_IDS["VAEDecode_upscale"],
+                        0
+                    ]
+                }
             }
-        }
-        denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
-        ksampler_upscale_node = {
-            "class_type": "KSampler",
-            "inputs": {
-                "cfg": 8,
-                "denoise": denoise if denoise < 1 else 0.30,
-                "model": [
-                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                    0
-                ],
-                "latent_image": [
-                    DEFAULT_NODE_IDS["LatentUpscale"],
-                    0
-                ],
-                "negative": [
-                    DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                    0
-                ],
-                "positive": [
-                    DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                    0
-                ],
-                "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
-                "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
-                "seed": seed,
-                "steps": ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
+            scaleimage_node = {
+                "class_type": "ImageScale",
+                "inputs": {
+                    "upscale_method": "bilinear",
+                    "width": width,
+                    "height": height,
+                    "crop": "disabled",
+                    "image": [
+                        DEFAULT_NODE_IDS["ImageUpscaleWithModel"],
+                        0
+                    ]
+                }
             }
-        }
-        params.update({
-            DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
-            DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
-        })
-        params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
-            DEFAULT_NODE_IDS["KSampler_upscale"],
-            0
-        ]
-        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
-            self.cfg(f"{cfg_prefix}_steps", int)/2)
-
-    def upscale_with_model(self, params, width, height, seed, cfg_prefix):
-        '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work'''
-        vae_id = DEFAULT_NODE_IDS["VAELoader"]
-        vaedecode_upscale_node = {
-            "class_type": "VAEDecode",
-            "inputs": {
-                "samples": [
-                    DEFAULT_NODE_IDS["KSampler"],
-                    0
-                ],
-                "vae": [
-                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                    0 if vae_id in params else 2
-                ]
+            vaeencode_upscale_node = {
+                "class_type": "VAEEncode",
+                "inputs": {
+                    "pixels": [
+                        DEFAULT_NODE_IDS["ImageScale"],
+                        0
+                    ],
+                    "vae": [
+                        vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0 if vae_id in params else 2
+                    ]
+                }
             }
-        }
-        upscalemodelloader_node = {
-            "class_type": "UpscaleModelLoader",
-            "inputs": {
-                "model_name": self.cfg("upscaler_name", str)
+            denoise = self.cfg(f"{mode}_denoising_strength", float)
+            ksampler_upscale_node = {
+                "class_type": "KSampler",
+                "inputs": {
+                    "cfg": 8,
+                    "denoise": denoise if denoise < 1 else 0.30,
+                    "model": [
+                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0
+                    ],
+                    "latent_image": [
+                        DEFAULT_NODE_IDS["VAEEncode_upscale"],
+                        0
+                    ],
+                    "negative": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                        0
+                    ],
+                    "positive": [
+                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                        0
+                    ],
+                    "sampler_name": self.cfg(f"{mode}_sampler", str),
+                    "scheduler": self.cfg(f"{mode}_scheduler", str),
+                    "seed": seed,
+                    "steps": ceil(self.cfg(f"{mode}_steps", int)/2)
+                }
             }
-        }
-        imageupscalewithmodel_node = {
-            "class_type": "ImageUpscaleWithModel",
-            "inputs": {
-                "upscale_model": [
-                    DEFAULT_NODE_IDS["UpscaleModelLoader"],
-                    0
-                ],
-                "image": [
-                    DEFAULT_NODE_IDS["VAEDecode_upscale"],
-                    0
-                ]
-            }
-        }
-        scaleimage_node = {
-            "class_type": "ImageScale",
-            "inputs": {
-                "upscale_method": "bilinear",
-                "width": width,
-                "height": height,
-                "crop": "disabled",
-                "image": [
-                    DEFAULT_NODE_IDS["ImageUpscaleWithModel"],
-                    0
-                ]
-            }
-        }
-        vaeencode_upscale_node = {
-            "class_type": "VAEEncode",
-            "inputs": {
-                "pixels": [
-                    DEFAULT_NODE_IDS["ImageScale"],
-                    0
-                ],
-                "vae": [
-                    vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                    0 if vae_id in params else 2
-                ]
-            }
-        }
-        denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
-        ksampler_upscale_node = {
-            "class_type": "KSampler",
-            "inputs": {
-                "cfg": 8,
-                "denoise": denoise if denoise < 1 else 0.30,
-                "model": [
-                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                    0
-                ],
-                "latent_image": [
-                    DEFAULT_NODE_IDS["VAEEncode_upscale"],
-                    0
-                ],
-                "negative": [
-                    DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                    0
-                ],
-                "positive": [
-                    DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                    0
-                ],
-                "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
-                "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
-                "seed": seed,
-                "steps": ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
-            }
-        }
-        params.update({
-            DEFAULT_NODE_IDS["VAEDecode_upscale"]: vaedecode_upscale_node,
-            DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
-            DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
-            DEFAULT_NODE_IDS["ImageScale"]: scaleimage_node,
-            DEFAULT_NODE_IDS["VAEEncode_upscale"]: vaeencode_upscale_node,
-            DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
-        })
-        params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["samples"] = [
-            DEFAULT_NODE_IDS["KSampler_upscale"],
-            0
-        ]
-        params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["steps"] = ceil(
-            self.cfg(f"{cfg_prefix}_steps", int)/2)
+            params.update({
+                DEFAULT_NODE_IDS["VAEDecode_upscale"]: vaedecode_upscale_node,
+                DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
+                DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
+                DEFAULT_NODE_IDS["ImageScale"]: scaleimage_node,
+                DEFAULT_NODE_IDS["VAEEncode_upscale"]: vaeencode_upscale_node,
+                DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+            })
+            params[vaedecode_id]["inputs"]["samples"] = [
+                DEFAULT_NODE_IDS["KSampler_upscale"],
+                0
+            ]
+            params[ksampler_id]["inputs"]["steps"] = ceil(self.cfg(f"{mode}_steps", int)/2)
         
     def apply_controlnet(self, params, controlnet_src_imgs):
-        if controlnet_src_imgs:
+        ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        if self.check_params(params, [ksampler_id]) and controlnet_src_imgs:
             prev = "" #chain positive conditioning
             prev_neg = "" #chain negative conditioning
 
@@ -677,13 +694,11 @@ class Client(QObject):
                         controlnet_src_imgs[str(i)]), i, prev, prev_neg)
             
             if prev != "":
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["positive"] = [prev, 0]
+                params[ksampler_id]["inputs"]["positive"] = [prev, 0]
             if prev_neg != "":
-                params[DEFAULT_NODE_IDS["KSampler"]]["inputs"]["negative"] = [prev_neg, 1]
+                params[ksampler_id]["inputs"]["negative"] = [prev_neg, 1]
 
     def controlnet_unit_params(self, params, image: str, unit: int, prev = "", prev_neg = ""):
-        '''Call only when base prompt structure is already stored in params,
-        otherwise will probably not work'''
         #Image loading
         preprocessor = self.cfg(f"controlnet{unit}_preprocessor", str)
         imageloader_prefix = DEFAULT_NODE_IDS["ControlNetImageLoader"]
@@ -835,6 +850,33 @@ class Client(QObject):
         params.update({id: apply_controlnet_node})
         return id, id #pos conditioning id, neg conditioning id
     
+    def set_img2img_batch(self, params, vae_encode_id):
+        def insert_image_batch_node(batch_size):
+            nonlocal counter
+            if batch_size == 1:
+                return DEFAULT_NODE_IDS["LoadBase64Image"]
+            image_batch_node = {
+                "class_type": "ImageBatch",
+                "inputs": {
+                    "image1": [
+                        insert_image_batch_node(batch_size - floor(batch_size/2)), 0
+                    ],
+                    "image2": [
+                        insert_image_batch_node(batch_size - floor(batch_size/2) - batch_size%2), 0
+                    ]
+                }
+            }
+            image_batch_node_id = f"{DEFAULT_NODE_IDS['ImageBatch']}+{counter}"
+            params.update({image_batch_node_id: image_batch_node})
+            counter += 1
+            return image_batch_node_id
+
+        if self.check_params(params, [vae_encode_id]):
+            batch_size = self.cfg("sd_batch_size", int)
+            if batch_size > 1:
+                counter = 0
+                params[vae_encode_id]["inputs"]["pixels"] = [insert_image_batch_node(batch_size), 0]
+
     def set_controlnet_preprocessor_and_model_list(self, obj):
         def set_preprocessors():
             preprocessors_info = {}
@@ -1026,6 +1068,10 @@ class Client(QObject):
             params[empty_latent_image_id]["inputs"]["width"] = resized_width
             params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
 
+        if mode == "img2img" or mode == "inpaint":
+            VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if DEFAULT_NODE_IDS["VAEEncode"] in params else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
+            self.set_img2img_batch(params, VAEEncode_id)
+
         if ksampler_found:
             ksampler_inputs = params[ksampler_id]["inputs"]
             if "seed" in ksampler_inputs:
@@ -1045,10 +1091,10 @@ class Client(QObject):
         if negative_prompt_found:
             params[negative_prompt_id]["inputs"]["text"] = negative_prompt
         
-        if not loras_loaded and model_loader_found and ksampler_found and positive_prompt_found and negative_prompt_found:
+        if not loras_loaded and model_loader_found:
             self.loadLoRAs(params, mode)
         
-        if ksampler_found and positive_prompt_found and negative_prompt_found:
+        if positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs)
 
         if image_scale_found:
@@ -1266,6 +1312,8 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
+            self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"])
+
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\
                 (min(width, height) > self.cfg("sd_base_size", int)
@@ -1433,6 +1481,8 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
+
+            self.set_img2img_batch(params, VAEEncode_id)
 
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\

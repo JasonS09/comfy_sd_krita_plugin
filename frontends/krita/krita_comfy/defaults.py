@@ -33,6 +33,7 @@ ERR_MISSING_CONFIG = "Report this bug, developer missed out a config key somewhe
 ERR_NO_DOCUMENT = "No document open yet!"
 ERR_NO_CONNECTION = "Cannot reach backend!"
 ERR_BAD_URL = "Invalid backend URL!"
+ERR_MISSING_NODE = "Required node missing in workflow."
 
 # tab IDs
 TAB_SDCOMMON = "krita_diff_sdcommon"
@@ -72,6 +73,7 @@ DEFAULT_NODE_IDS = {
     #Img2img
     "LoadBase64Image": "LoadBase64Image",
     "VAEEncode": "VAEEncode",
+    "ImageBatch": "ImageBatch",
 
     #Inpaint
     "LoadBase64ImageMask": "LoadBase64ImageMask",
