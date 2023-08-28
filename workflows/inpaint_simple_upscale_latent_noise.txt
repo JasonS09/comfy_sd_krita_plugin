@@ -1,4 +1,4 @@
-Use this inpainting workflow to make generations without the second KSampler pass and instead applying only a simple upscale. Replace your-model with your actual model for the first nodes. This version uses VAEEncodeForInpaint, so should be the preferred workflow for inpainting with latent noise mode.
+Use this inpainting workflow to make generations without the second KSampler pass and instead applying only a simple upscale. This version uses VAEEncodeForInpaint, so should be the preferred workflow for inpainting with latent noise mode.
 {
     "4": {
         "class_type": "CheckpointLoaderSimple",

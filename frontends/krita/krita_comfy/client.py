@@ -1008,13 +1008,15 @@ class Client(QObject):
         negative_prompt_id =  DEFAULT_NODE_IDS["ClipTextEncode_neg"]
         image_scale_id = DEFAULT_NODE_IDS["ImageScale"]
         latent_upscale_id = DEFAULT_NODE_IDS["LatentUpscale"]
+        model_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        upscale_model_loader_id = DEFAULT_NODE_IDS["UpscaleModelLoader"]
         ksampler_found =  ksampler_id in params
         positive_prompt_found = positive_prompt_id in params
         negative_prompt_found = negative_prompt_id in params
         image_scale_found = image_scale_id in params
         latent_upscale_found = latent_upscale_id in params
-        model_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
         model_loader_found =  model_loader_id in params
+        upscale_model_loader_found = upscale_model_loader_id in params
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
@@ -1061,6 +1063,9 @@ class Client(QObject):
                     loras_loaded = True
 
             return json.loads(str_params) if str_params != "" else params
+        
+        if model_loader_found:
+            params[model_loader_id]["inputs"]["ckpt_name"] = self.cfg("sd_model", str)
 
         if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
@@ -1096,6 +1101,9 @@ class Client(QObject):
         
         if positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs)
+
+        if upscale_model_loader_found:
+            params[upscale_model_loader_id]["inputs"]["model_name"] = self.cfg("upscaler_name", str)
 
         if image_scale_found:
             params[image_scale_id]["inputs"]["height"] = original_height

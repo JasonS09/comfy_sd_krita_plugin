@@ -1,5 +1,4 @@
-Use this inpainting workflow to make generations without the second KSampler pass and instead applying only a simple upscale. Replace your-model with your actual model for the first nodes.
-
+Use this inpainting workflow to make generations without the second KSampler pass and instead applying only a simple upscale.
 {
     "4": {
         "class_type": "CheckpointLoaderSimple",
