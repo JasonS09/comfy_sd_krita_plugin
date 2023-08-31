@@ -739,14 +739,15 @@ class Client(QObject):
         num_controlnetloader_nodes = 0
         for key, value in params.items():
             if key.startswith(controlnetloader_prefix) or key.startswith(clipvisionloader_prefix):
-                if key.startswith(controlnetloader_prefix):
-                    model_in = "control_net_name"
-                else:
-                    model_in = "clip_name"
-                    is_controlnet = False
-                if value["inputs"][model_in] == self.cfg(f"controlnet{unit}_model", str):
-                    model_node_exists = True
-                    break
+                try:
+                    if value["inputs"]["control_net_name"] == self.cfg(f"controlnet{unit}_model", str):
+                        model_node_exists = True
+                        break
+                except KeyError:
+                    if value["inputs"]["clip_name"] == self.cfg(f"controlnet{unit}_model", str):
+                        model_node_exists = True
+                        is_controlnet = False
+                        break
                 num_controlnetloader_nodes += 1
 
         controlnetloader_node_id = f"{controlnetloader_prefix if is_controlnet else clipvisionloader_prefix}+{num_controlnetloader_nodes}"
