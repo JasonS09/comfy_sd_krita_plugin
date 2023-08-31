@@ -219,7 +219,9 @@ class Client(QObject):
                 while True:
                     lora_name = re.sub(".safetensors", "", node_inputs["lora_name"])
                     lora_weight = node_inputs["strength_model"]
-                    output += f"\n<lora:{lora_name}:{lora_weight}>"
+                    #Let's not use "<" and ">" signs here since the content between it will be totally removed somewhere during
+                    #Group later name setting. Trying to escape characters didn't seem to work, so let's just list the loras.
+                    output += f" lora:{lora_name}:{lora_weight}" 
                     lora_loader_count += 1
                     node_inputs = nodes[f"{node_name}+{lora_loader_count}"]["inputs"]
             except (KeyError, ValueError, IndexError):
