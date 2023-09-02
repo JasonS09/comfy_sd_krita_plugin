@@ -451,7 +451,6 @@ class Client(QObject):
     def auto_complete_LoRA(self, name: str):
         lora_list = [ re.sub(".safetensors$", "", l, flags=re.I) for l in self.cfg("sd_lora_list", str)]
         viable_loras = [l for l in lora_list if re.search(name+"$", l, flags=re.I)]
-        print(viable_loras)
         if (len(viable_loras) == 1 and name == viable_loras[0]):
             return name
         elif (len(viable_loras) == 1):
@@ -489,7 +488,6 @@ class Client(QObject):
             for match in matches:
                 # Extract the lora name and the strength number from the match
                 lora_name = self.auto_complete_LoRA(match[0])
-                print(lora_name)
                 strength_number = float(match[1])
 
                 # Create a node dictionary with the class type, inputs, and outputs
