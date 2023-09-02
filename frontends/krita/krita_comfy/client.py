@@ -483,7 +483,7 @@ class Client(QObject):
             matches = re.findall(self.lora_re, pos_prompt)
 
             # Remove LoRAs from prompt
-            params[cliptextencode_pos_id]["inputs"]["text"] = re.sub(pattern, "", pos_prompt)
+            params[cliptextencode_pos_id]["inputs"]["text"] = re.sub(self.lora_re, "", pos_prompt)
 
             # Loop through the matches and create a node for each element
             for match in matches:
