@@ -170,6 +170,8 @@ class Client(QObject):
     images_received = pyqtSignal(object)
     prompt_sent = pyqtSignal()
 
+    lora_re = r"<lora:([=\[\] \\/\w\d.-]+):(\-?[\d.]+)>"
+
     def __init__(self, cfg: Config, ext_cfg: Config):
         """It is highly dependent on config's structure to the point it writes directly to it. :/"""
         super(Client, self).__init__()
@@ -478,8 +480,7 @@ class Client(QObject):
             pos_prompt = self.cfg(f"{mode}_prompt", str)
 
             # Use a regular expression to find all the elements between < and > in the string
-            pattern = r"<lora:([=\[\] /\w\d.-]+):(\-?[\d.]+)>"
-            matches = re.findall(pattern, pos_prompt)
+            matches = re.findall(self.lora_re, pos_prompt)
 
             # Remove LoRAs from prompt
             params[cliptextencode_pos_id]["inputs"]["text"] = re.sub(pattern, "", pos_prompt)
@@ -1044,7 +1045,7 @@ class Client(QObject):
         loras_loaded = False
 
         def remove_lora_from_prompt():
-            pattern = r"<lora:([=\[\] /\w\d.-]+):(\-?[\d.]+)>"
+            pattern = self.lora_re
             return re.sub(pattern, "", prompt)
 
         def load_placeholder_data():
