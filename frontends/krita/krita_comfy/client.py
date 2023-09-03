@@ -452,7 +452,7 @@ class Client(QObject):
 
     def auto_complete_LoRA(self, name: str):
         lora_list = [ re.sub(".safetensors$", "", l, flags=re.I) for l in self.cfg("sd_lora_list", str)]
-        viable_loras = [l for l in lora_list if re.search(name+"$", l, flags=re.I)]
+        viable_loras = [l for l in lora_list if re.search(re.escape(name)+"$", l, flags=re.I)]
         if (len(viable_loras) == 1 and name == viable_loras[0]):
             return name
         elif (len(viable_loras) == 1):
