@@ -123,6 +123,7 @@ class Defaults:
 
     sd_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     sd_model: str = "model.ckpt"
+    sd_lora_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     sd_vae_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     sd_vae: str = "Automatic"
     clip_skip: int = 1
