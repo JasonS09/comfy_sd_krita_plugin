@@ -4,6 +4,7 @@ from typing import List
 import itertools
 import json
 import re
+import copy
 
 from krita import (
     QImage,
@@ -54,6 +55,18 @@ def print_attributes(obj):
             output += str(getattr(obj, m))
     output += "]"
     return output
+
+
+def update_json(json_obj, key_to_update, new_value):
+    if isinstance(json_obj, dict):
+        for key, value in json_obj.items():
+            if key == key_to_update:
+                json_obj[key] = new_value
+            else:
+                update_json(value, key_to_update, new_value)
+    elif isinstance(json_obj, list):
+        for item in json_obj:
+            update_json(item, key_to_update, new_value)
 
 
 def add_loras_from_history(history):
@@ -173,7 +186,7 @@ class PromptBase:
     scheduler: str = DEFAULTS.txt2img_sampler
     steps: str = DEFAULTS.txt2img_steps
     cfg: float = 7.0
-    denoise: float = 0.7
+    denoise: float = None
 
     def __str__(self):
         return print_attributes(self)
@@ -227,21 +240,31 @@ class PromptResponse(PromptBase):
 
             # KSampler
             ksampler_inputs = bind_or_none(workflow, [ids["KSampler"], "inputs"])
+            ksampler_inputs_latent = bind_or_none(ksampler_inputs, ["latent_image"])
             if ksampler_inputs is not None:
                 self.cfg = ksampler_inputs.get("cfg")
-                self.denoise = ksampler_inputs.get("denoise")
                 self.sampler = ksampler_inputs.get("sampler_name")
                 self.scheduler = ksampler_inputs.get("scheduler")
                 self.seed = ksampler_inputs.get("seed")
                 self.steps = ksampler_inputs.get("steps")
+                # txt2img without hires always sets the denoise to 1
+                if ksampler_inputs_latent is not None and not ksampler_inputs_latent[0] == ids["EmptyLatentImage"]:
+                    self.denoise = round(ksampler_inputs.get("denoise"), 2)
+
+            # KSampler_HiRes
+            ksampler_hires_inputs = bind_or_none(workflow, [ids["KSampler_upscale"], "inputs"])
+            if ksampler_hires_inputs is not None:
+                self.denoise = round(ksampler_hires_inputs.get("denoise"), 2)
+                self.steps += ksampler_hires_inputs.get("steps")
 
             if image_names is not None:
                 for i in image_names:
                     self.image_info.append((i, "", ""))
             else:
                 output_images_info = bind_or_none(history, ['outputs', output_name, 'images'])
-                for image in output_images_info:
-                    self.image_info.append((image["filename"], image["subfolder"], image["type"]))
+                if output_images_info is not None:
+                    for image in output_images_info:
+                        self.image_info.append((image["filename"], image["subfolder"], image["type"]))
 
         except (KeyError, ValueError, IndexError):
             # Due to the way response can be used with other workflows
@@ -251,6 +274,13 @@ class PromptResponse(PromptBase):
         if images is not None:
             self.images = [Base64Image.from_image(i) for i in images]
             assert len(self.images) == len(self.image_info)
+
+        # Print contents for unit test cases
+        # __p = copy.deepcopy(history)
+        # update_json(__p, 'image', '__snip__')
+        # print(json.dumps(__p))
+        # print(self.to_base_prompt_json())
+
         return self
 
     def to_base_prompt_json(self) -> str:
