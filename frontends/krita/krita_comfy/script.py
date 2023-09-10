@@ -24,6 +24,8 @@ from .defaults import (
     ADD_MASK_TIMEOUT,
     ERR_NO_DOCUMENT,
     ERR_MISSING_PROMPT,
+    ERR_BACKEND,
+    ERR_EMPTY_RESPONSE,
     ETA_REFRESH_INTERVAL,
     EXT_CFG_NAME,
     STATE_INTERRUPT,
@@ -301,6 +303,8 @@ class Script(QObject):
             #     insert(f"upscale", outputs[0])
             #     self.doc.refreshProjection()
             # else:
+            if len(response.image_info) < 1:
+                self.status_changed.emit(ERR_EMPTY_RESPONSE)
             try:
                 layers = [
                     insert(name if name else f"{mode} {i + 1}", output)
@@ -431,10 +435,13 @@ class Script(QObject):
             image = self.get_selection_image()    
 
         def cb(response: PromptResponse):
-            assert response is not None, "Backend Error, check terminal"
-            output = response.images[0]
-            pixmap = QPixmap.fromImage(output.img)
-            self.controlnet_preview_annotator_received.emit(pixmap)
+            assert response is not None, ERR_BACKEND
+            if len(response.image_info) < 1:
+                self.status_changed.emit(ERR_EMPTY_RESPONSE)
+            else:
+                output = response.images[0]
+                pixmap = QPixmap.fromImage(output.img)
+                self.controlnet_preview_annotator_received.emit(pixmap)
 
         self.client.post_controlnet_preview(cb, image)
 
@@ -447,7 +454,7 @@ class Script(QObject):
             save_img(sel_image, path)
 
         def cb(response: PromptResponse):
-            assert response is not None, "Backend Error, check terminal"
+            assert response is not None, ERR_BACKEND
             output = response.images[0]
             insert(f"upscale", output)
             self.doc.refreshProjection()

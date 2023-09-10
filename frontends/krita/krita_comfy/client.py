@@ -227,6 +227,10 @@ class Client(QObject):
             history = history_res[prompt_id] if prompt_id is not None else history_res[list(history_res.keys())[-1]]
             response = PromptResponse.from_history_json(history)
 
+            # Server error occured empty response
+            if len(response.image_info) < 1:
+                self.images_received.emit(response)
+
             for image in response.image_info:
                 self.get_image(image[0], image[1], image[2], on_image_received)
 
