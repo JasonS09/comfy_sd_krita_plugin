@@ -8,6 +8,7 @@ from typing import Any
 from urllib.error import URLError
 from urllib.parse import urljoin, urlparse, urlencode
 from urllib.request import Request, urlopen
+import ssl
 
 from krita import (
     Qt,
@@ -127,10 +128,13 @@ class AsyncRequest(QObject):
     def run(self):
         try:
             url = self.url
+            ctx = None
+            if url.startswith('https://'):
+                ctx = ssl.create_default_context()
             if self.method == "GET":
                 url = url if self.data is None else f"{self.url}?{urlencode(self.data)}"
             req = Request(url, headers=self.headers, method=self.method)
-            with urlopen(req, self.data if self.method == "POST" else None, self.timeout) as res:
+            with urlopen(req, self.data if self.method == "POST" else None, self.timeout, context=ctx) as res:
                 data = res.read()
                 enc_type = res.getheader("X-Encrypted-Body", None)
                 assert enc_type in {"XOR", None}, "Unknown server encryption!"
