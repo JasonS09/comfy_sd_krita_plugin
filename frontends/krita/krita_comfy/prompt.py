@@ -15,11 +15,14 @@ from krita import (
 )
 
 from .config import DEFAULTS
-from .defaults import DEFAULT_NODE_IDS
+from .defaults import (
+    DEFAULT_NODE_IDS
+    , PROMPT
+    , PRUNED_DATA
+)
 
 def _default(self, obj):
     return getattr(obj.__class__, "to_json", _default.default)(obj)
-
 
 _default.default = json.JSONEncoder().default
 json.JSONEncoder.default = _default
@@ -177,15 +180,15 @@ class PromptBase:
         We don't want the image data here for that use the Response class
     """
     mode: PromptMode = PromptMode.empty
-    sd_model: str = DEFAULTS.sd_model
-    clip_skip: int = DEFAULTS.clip_skip
-    seed: int = 0
-    pos_prompt: str = ""
-    neg_prompt: str = ""
-    sampler: str = DEFAULTS.txt2img_sampler
-    scheduler: str = DEFAULTS.txt2img_sampler
-    steps: str = DEFAULTS.txt2img_steps
-    cfg: float = 7.0
+    sd_model: str = None
+    clip_skip: int = None
+    seed: int = None
+    pos_prompt: str = None
+    neg_prompt: str = None
+    sampler: str = None
+    scheduler: str = None
+    steps: str = None
+    cfg: float = None
     denoise: float = None
 
     def __str__(self):
@@ -209,6 +212,7 @@ class PromptBase:
 @dataclass
 class PromptResponse(PromptBase):
     """This class represents a response from the ComfyUI server"""
+    history: dict = field(default_factory=dict)
     image_info: List[tuple[str, str, str]] = field(default_factory=list)  # name, subfolder, type
     images: List[Base64Image] = field(default_factory=list)
 
@@ -216,6 +220,9 @@ class PromptResponse(PromptBase):
     def from_history_json(history: dict, images: list[QImage] = None, image_names: list[str] = None):
         ids = DEFAULT_NODE_IDS
         self = PromptResponse()
+        self.history = copy.deepcopy(history)
+        update_json(self.history, 'image', PRUNED_DATA)
+        update_json(self.history, 'text', PROMPT)
 
         try:
             # Attempt to parse the history json
@@ -274,12 +281,6 @@ class PromptResponse(PromptBase):
         if images is not None:
             self.images = [Base64Image.from_image(i) for i in images]
             assert len(self.images) == len(self.image_info)
-
-        # Print contents for unit test cases
-        # __p = copy.deepcopy(history)
-        # update_json(__p, 'image', '__snip__')
-        # print(json.dumps(__p))
-        # print(self.to_base_prompt_json())
 
         return self
 
