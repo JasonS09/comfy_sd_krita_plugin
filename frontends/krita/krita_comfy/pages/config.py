@@ -1,6 +1,6 @@
 from functools import partial
 
-from krita import QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from ..defaults import DEFAULTS
 from ..script import script

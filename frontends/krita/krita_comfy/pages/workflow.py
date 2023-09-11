@@ -1,16 +1,14 @@
 import json
-from krita import (
-    QWidget,
-    QPushButton,
-    QVBoxLayout,
-    QFileDialog
-)
-from ..widgets import(
+
+from PyQt5.QtWidgets import QWidget, QPushButton, QVBoxLayout, QFileDialog
+
+from ..widgets import (
     StatusBar,
     QComboBoxLayout,
     QPromptEdit
 )
 from ..script import script
+
 
 class WorkflowPage(QWidget):
     name = "Workflow"

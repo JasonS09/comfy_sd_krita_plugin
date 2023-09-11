@@ -1,9 +1,9 @@
-from krita import QHBoxLayout, QPushButton
-
+from PyQt5.QtWidgets import QHBoxLayout, QPushButton
 from ..script import script
 from ..widgets import TipsLayout
 from .img_base import SDImgPageBase
 from ..utils import get_workflow
+
 
 class Txt2ImgPage(SDImgPageBase):
     name = "Txt2Img"

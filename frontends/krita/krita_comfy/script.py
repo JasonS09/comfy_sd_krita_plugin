@@ -3,18 +3,14 @@ import os
 import time
 import json
 
+from PyQt5.QtCore import QObject, QRect, QTimer, Qt, pyqtSignal
+from PyQt5.QtGui import QImage, QPixmap
+
 from krita import (
     Document,
     Krita,
     Node,
-    QImage,
-    QObject,
-    QPixmap,
-    QRect,
-    Qt,
-    QTimer,
     Selection,
-    pyqtSignal
 )
 
 from .prompt import PromptResponse, PromptBase, Base64Image

@@ -1,4 +1,5 @@
-from krita import QPixmap, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from ..script import script
 from ..utils import b64_to_img

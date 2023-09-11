@@ -1,6 +1,6 @@
 from functools import partial
 
-from krita import QHBoxLayout, QLineEdit
+from PyQt5.QtWidgets import QHBoxLayout, QLineEdit
 
 from ..config import Config
 from .misc import QLabel

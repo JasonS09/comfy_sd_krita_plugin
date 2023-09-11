@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from typing import Any
 
-from krita import QObject, QReadWriteLock, QSettings
+from PyQt5.QtCore import QObject, QReadWriteLock, QSettings
 
 from .defaults import CFG_FOLDER, CFG_NAME, DEFAULTS, ERR_MISSING_CONFIG
 

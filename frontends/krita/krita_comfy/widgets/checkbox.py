@@ -1,7 +1,7 @@
 from functools import partial
 
-from krita import QCheckBox as _QCheckBox
-from krita import QHBoxLayout, QVBoxLayout
+from PyQt5.QtWidgets import QCheckBox as _QCheckBox
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout
 
 from ..config import Config
 from .misc import QLabel

@@ -1,6 +1,6 @@
 from typing import List
 
-from krita import QVBoxLayout
+from PyQt5.QtWidgets import QVBoxLayout
 
 from .misc import QLabel
 
