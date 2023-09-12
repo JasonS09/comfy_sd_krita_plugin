@@ -16,7 +16,7 @@ STATE_INTERRUPT = "Interrupted!"
 # Other currently hardcoded stuff
 SHORT_TIMEOUT = 10
 LONG_TIMEOUT = None  # requests that might take "forever", i.e., image generation with high batch count
-REFRESH_INTERVAL = 3000  # 3 seconds between auto-config refresh
+REFRESH_INTERVAL = 15000  # 15 seconds between auto-config refresh
 ETA_REFRESH_INTERVAL = 250  # milliseconds between eta refresh
 CFG_FOLDER = "krita"  # which folder in ~/.config to store config
 CFG_NAME = "krita_diff_plugin"  # name of config file
@@ -128,6 +128,7 @@ class Defaults:
     sd_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     sd_model: str = "model.ckpt"
     sd_lora_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    sd_embedding_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     sd_vae_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     sd_vae: str = "Automatic"
     clip_skip: int = 1

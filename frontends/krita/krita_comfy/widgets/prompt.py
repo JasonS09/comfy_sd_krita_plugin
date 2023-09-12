@@ -1,5 +1,27 @@
+import re
+from PyQt5.QtGui import QSyntaxHighlighter, QColor, QColorConstants
 from PyQt5.QtWidgets import QPlainTextEdit, QSizePolicy, QVBoxLayout
 from ..config import Config
+from ..utils import auto_complete_LoRA, auto_complete_embedding, re_lora, re_embedding
+
+
+class QPromptHighLighter(QSyntaxHighlighter):
+    def __init__(self, cfg: Config, *args, **kwargs):
+        super(QSyntaxHighlighter, self).__init__(*args, **kwargs)
+
+        self.cfg = cfg
+        self.highlighters = [
+            [re_lora, auto_complete_LoRA],
+            [re_embedding, auto_complete_embedding]]
+
+    def highlightBlock(self, line):
+        for expression, func in self.highlighters:
+            for m in re.finditer(expression, line):
+                valid, names = func(self.cfg, m.group(1))
+                color: QColor = QColorConstants.Green
+                color = color if valid else QColorConstants.Red
+                color = color if len(names) < 2 else QColorConstants.Yellow
+                self.setFormat(m.start(0), m.end(0), color)
 
 
 class QPromptEdit(QPlainTextEdit):

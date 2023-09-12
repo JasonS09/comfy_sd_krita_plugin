@@ -36,7 +36,10 @@ from .defaults import (
 from .utils import (
     bytewise_xor,
     img_to_b64,
-    calculate_resized_image_dimensions
+    calculate_resized_image_dimensions,
+    re_lora,
+    re_embedding,
+    auto_complete_LoRA
 )
 
 from .prompt import PromptResponse
@@ -169,8 +172,6 @@ class Client(QObject):
     config_updated = pyqtSignal()
     images_received = pyqtSignal(object)
     prompt_sent = pyqtSignal()
-
-    lora_re = r"<lora:([=\[\] \\/\w\d.-]+):(\-?[\d.]+)>"
 
     def __init__(self, cfg: Config, ext_cfg: Config):
         """It is highly dependent on config's structure to the point it writes directly to it. :/"""
@@ -404,20 +405,6 @@ class Client(QObject):
 
         return params
 
-    def auto_complete_LoRA(self, name: str):
-        lora_list = [ re.sub(".safetensors$", "", l, flags=re.I) for l in self.cfg("sd_lora_list", str)]
-        viable_loras = [l for l in lora_list if re.search(re.escape(name)+"$", l, flags=re.I)]
-        if (len(viable_loras) == 1 and name == viable_loras[0]):
-            return name
-        elif (len(viable_loras) == 1):
-            print("Using Lora:", viable_loras[0])
-            return viable_loras[0]
-        elif (len(viable_loras) > 1):
-            print("Ambiguous Lora:", name, "\nCould be:", viable_loras )
-        return name
-
-
-
     def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
         clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         checkpointloadersimple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
@@ -434,15 +421,16 @@ class Client(QObject):
             pos_prompt = self.cfg(f"{mode}_prompt", str)
 
             # Use a regular expression to find all the elements between < and > in the string
-            matches = re.findall(self.lora_re, pos_prompt)
+            matches = re.findall(re_lora, pos_prompt)
 
             # Remove LoRAs from prompt
-            params[cliptextencode_pos_id]["inputs"]["text"] = re.sub(self.lora_re, "", pos_prompt)
+            params[cliptextencode_pos_id]["inputs"]["text"] = re.sub(re_lora, "", pos_prompt)
 
             # Loop through the matches and create a node for each element
             for match in matches:
                 # Extract the lora name and the strength number from the match
-                lora_name = self.auto_complete_LoRA(match[0])
+                lora_valid, lora_names = auto_complete_LoRA(self.cfg, match[0])
+                lora_name = lora_names[0] if lora_valid else match[0]
                 strength_number = float(match[1])
 
                 # Create a node dictionary with the class type, inputs, and outputs
@@ -944,6 +932,30 @@ class Client(QObject):
 
         self.get("/object_info", on_get_response, ignore_no_connection=True)
 
+    def get_embbeddings(self):
+        def check_response(obj):
+            def on_success():
+                self.is_connected = True
+                self.status.emit(STATE_READY)
+                self.config_updated.emit()
+
+            try:
+                assert obj is not None
+                on_success()
+                return True
+            except:
+                self.status.emit(
+                    f"{STATE_URLERROR}: incompatible response, are you running the right API?"
+                )
+                print("Invalid Response:\n", obj)
+                return False
+
+        def on_get_response(obj):
+            if check_response(obj):
+                self.cfg.set("sd_embedding_list", obj)
+
+        self.get("/embeddings", on_get_response, ignore_no_connection=True)
+
     def get_controlnet_config(self):
         '''Get models and modules for ControlNet'''
         def check_response(obj, keys = []):
@@ -1002,7 +1014,7 @@ class Client(QObject):
         vae_loaded = False
 
         def remove_lora_from_prompt():
-            pattern = self.lora_re
+            pattern = re_lora
             return re.sub(pattern, "", prompt)
 
         def load_placeholder_data():

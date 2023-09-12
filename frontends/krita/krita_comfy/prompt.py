@@ -15,8 +15,10 @@ from .defaults import (
     , PRUNED_DATA
 )
 
+
 def _default(self, obj):
     return getattr(obj.__class__, "to_json", _default.default)(obj)
+
 
 _default.default = json.JSONEncoder().default
 json.JSONEncoder.default = _default
