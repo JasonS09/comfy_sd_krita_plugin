@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum, unique
-from typing import List
+from typing import List, Dict, Tuple
 import itertools
 import json
 import re
@@ -32,7 +32,7 @@ def get_members(obj):
     return [attr for attr in dir(obj) if not callable(getattr(obj, attr)) and not attr.startswith("__")]
 
 
-def bind_or_none(data: dict, keys: list[str]):
+def bind_or_none(data: Dict, keys: List[str]):
     node = data
     for k in keys:
         if node is not None:
@@ -213,11 +213,11 @@ class PromptBase:
 class PromptResponse(PromptBase):
     """This class represents a response from the ComfyUI server"""
     history: dict = field(default_factory=dict)
-    image_info: List[tuple[str, str, str]] = field(default_factory=list)  # name, subfolder, type
+    image_info: List[Tuple[str, str, str]] = field(default_factory=list)  # name, subfolder, type
     images: List[Base64Image] = field(default_factory=list)
 
     @staticmethod
-    def from_history_json(history: dict, images: list[QImage] = None, image_names: list[str] = None):
+    def from_history_json(history: dict, images: List[QImage] = None, image_names: List[str] = None):
         ids = DEFAULT_NODE_IDS
         self = PromptResponse()
         self.history = copy.deepcopy(history)
