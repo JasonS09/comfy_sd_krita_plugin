@@ -23,7 +23,7 @@ from .defaults import (
     TAB_TXT2IMG,
     TAB_UPSCALE,
     TAB_CONTROLNET,
-    TAB_WORKFLOW
+    TAB_WORKFLOW,
 )
 
 def fix_prompt(prompt: str):
@@ -202,25 +202,6 @@ def bytewise_xor(msg: bytes, key: bytes):
     """Used for decrypting/encrypting request/response bodies."""
     return bytes(v ^ k for v, k in zip(msg, cycle(key)))
 
-
-def get_desc_from_resp(resp: dict, type: str = ""):
-    """Get description of image generation from backend response."""
-    try:
-        info = resp["info"]
-        names = info["all_names"]
-        glayer_desc = f"""[{type}]
-Prompt: {info['prompt']},
-Negative Prompt: {info['negative_prompt']},
-Model: {info['sd_model']},
-Sampler: {info['sampler_name']},
-Scale: {info['cfg_scale']},
-Steps: {info['steps']}"""
-        layers_desc = []
-        for name in names:
-            layers_desc.append(f"Name: {name}")
-        return glayer_desc, layers_desc
-    except:
-        return f"[{type}]", cycle([None])
 
 def clear_layout(layout: QLayout):
     if layout is not None:

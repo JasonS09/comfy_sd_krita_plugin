@@ -17,11 +17,15 @@ from krita import (
     pyqtSignal
 )
 
+from .prompt import PromptResponse, PromptBase, Base64Image
 from .client import Client
 from .config import Config
 from .defaults import (
     ADD_MASK_TIMEOUT,
     ERR_NO_DOCUMENT,
+    ERR_MISSING_PROMPT,
+    ERR_BACKEND,
+    ERR_EMPTY_RESPONSE,
     ETA_REFRESH_INTERVAL,
     EXT_CFG_NAME,
     STATE_INTERRUPT,
@@ -32,7 +36,6 @@ from .defaults import (
 from .utils import (
     b64_to_img,
     find_optimal_selection_region,
-    get_desc_from_resp,
     img_to_ba,
     save_img,
 )
@@ -112,6 +115,18 @@ class Script(QObject):
         running = len(progress["queue_running"])
         if running > 0:
             self.status_changed.emit(f"Executing prompt... ({len(progress['queue_pending'])} in queue)")
+
+    def prompt_from_selection(self) -> PromptBase:
+        """Return prompt parameters from the selected layer or None"""
+        self.update_selection()
+        if not hasattr(self, 'node') or not self.node:
+            return None
+
+        prompt_info = PromptBase.from_json(self.node.name())
+        if not prompt_info:
+            self.status_changed.emit(ERR_MISSING_PROMPT)
+        return prompt_info
+
 
     def update_selection(self):
         """Update references to key Krita objects as well as selection information."""
@@ -218,18 +233,15 @@ class Script(QObject):
                 parent.addChildNode(layer, None)
             return layer
             
-        def insert(layer_name, enc):
+        def insert(layer_name: str, b64image: Base64Image):
             nonlocal x, y, width, height, has_selection
-            print(f"inserting layer {layer_name}")
-            print(f"data size: {len(enc)}")
-
             # QImage.Format_RGB32 (4) is default format after decoding image
             # QImage.Format_RGBA8888 (17) is format used in Krita tutorial
             # both are compatible, & converting from 4 to 17 required a RGB swap
             # Likewise for 5 & 18 (their RGBA counterparts)
-            image = b64_to_img(enc)
+            image = b64image.img
             print(
-                f"image created: {image}, {image.width()}x{image.height()}, depth: {image.depth()}, format: {image.format()}"
+                f"inserting {layer_name}: {image.width()}x{image.height()}, depth: {image.depth()}, format: {image.format()}"
             )
 
             # Image won't be scaled down ONLY if there is no selection; i.e. selecting whole image will scale down,
@@ -284,19 +296,19 @@ class Script(QObject):
         if not is_inpaint:
             mask_trigger = self.transparency_mask_inserter()
 
-        def cb(response):
+        def cb(response: PromptResponse):
             assert response is not None
-            outputs = response["outputs"]
-
+            response.mode = mode
             # if is_upscale:
             #     insert(f"upscale", outputs[0])
             #     self.doc.refreshProjection()
             # else:
-            glayer_name, layer_names = get_desc_from_resp(response, mode)
+            if len(response.image_info) < 1:
+                self.status_changed.emit(ERR_EMPTY_RESPONSE)
             try:
                 layers = [
                     insert(name if name else f"{mode} {i + 1}", output)
-                    for output, name, i in zip(outputs, layer_names, itertools.count())
+                    for output, name, i in response.image_insert_list()
                 ]
             except Exception as e:
                 try:
@@ -310,7 +322,7 @@ class Script(QObject):
                     layer.setVisible(False)
 
             if glayer:
-                glayer.setName(glayer_name)
+                glayer.setName(response.to_base_prompt_json())
             self.doc.refreshProjection()
 
             if not is_inpaint:
@@ -422,11 +434,14 @@ class Script(QObject):
         else:
             image = self.get_selection_image()    
 
-        def cb(response):
-            assert response is not None, "Backend Error, check terminal"
-            output = response["outputs"][0]
-            pixmap = QPixmap.fromImage(b64_to_img(output))
-            self.controlnet_preview_annotator_received.emit(pixmap)
+        def cb(response: PromptResponse):
+            assert response is not None, ERR_BACKEND
+            if len(response.image_info) < 1:
+                self.status_changed.emit(ERR_EMPTY_RESPONSE)
+            else:
+                output = response.images[0]
+                pixmap = QPixmap.fromImage(output.img)
+                self.controlnet_preview_annotator_received.emit(pixmap)
 
         self.client.post_controlnet_preview(cb, image)
 
@@ -438,9 +453,9 @@ class Script(QObject):
         if self.cfg("save_temp_images", bool):
             save_img(sel_image, path)
 
-        def cb(response):
-            assert response is not None, "Backend Error, check terminal"
-            output = response["outputs"][0]
+        def cb(response: PromptResponse):
+            assert response is not None, ERR_BACKEND
+            output = response.images[0]
             insert(f"upscale", output)
             self.doc.refreshProjection()
             self.client.images_received.disconnect(cb)
