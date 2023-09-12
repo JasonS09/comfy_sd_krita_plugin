@@ -58,7 +58,7 @@ DEFAULT_NODE_IDS = {
     "EmptyLatentImage": "5",
     "ClipTextEncode_pos": "6",
     "ClipTextEncode_neg": "7",
-    "VAEDecode": "VAEDecode",
+    "VAEDecode": "8",
     "SaveImage": "SaveImage",
     "ClipSetLastLayer": "ClipSetLastLayer",
     "VAELoader": "VAELoader",

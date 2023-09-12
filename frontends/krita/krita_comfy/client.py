@@ -339,6 +339,22 @@ class Client(QObject):
                 self.status.emit(ERR_MISSING_NODE)
                 return False
         return True
+    
+    def load_vae(self, params):
+        if self.check_params(params, [DEFAULT_NODE_IDS["VAEDecode"]]):
+            vaeloader_node = {
+                "class_type": "VAELoader",
+                "inputs": {
+                    "vae_name": self.cfg("sd_vae", str)
+                }
+            }
+            params.update({
+                DEFAULT_NODE_IDS["VAELoader"]: vaeloader_node
+            })
+            params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["vae"] = [
+                DEFAULT_NODE_IDS["VAELoader"],
+                0
+            ]
 
     def common_params(self):
         """Parameters used by most modes."""
@@ -388,25 +404,9 @@ class Client(QObject):
             DEFAULT_NODE_IDS["ClipSetLastLayer"]: clipsetlastlayer_node
         }
 
-        def loadVAE():
-            nonlocal params
-            vaeloader_node = {
-                "class_type": "VAELoader",
-                "inputs": {
-                    "vae_name": self.cfg("sd_vae", str)
-                }
-            }
-            params.update({
-                DEFAULT_NODE_IDS["VAELoader"]: vaeloader_node
-            })
-            params[DEFAULT_NODE_IDS["VAEDecode"]]["inputs"]["vae"] = [
-                DEFAULT_NODE_IDS["VAELoader"],
-                0
-            ]
-
         if self.cfg("sd_vae", str) != "None"  \
                 and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
-            loadVAE()
+            self.load_vae(params)
 
         return params
 
@@ -992,6 +992,7 @@ class Client(QObject):
         image_scale_id = DEFAULT_NODE_IDS["ImageScale"]
         latent_upscale_id = DEFAULT_NODE_IDS["LatentUpscale"]
         model_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        vae_loader_id = DEFAULT_NODE_IDS["VAELoader"]
         upscale_model_loader_id = DEFAULT_NODE_IDS["UpscaleModelLoader"]
         ksampler_found =  ksampler_id in params
         positive_prompt_found = positive_prompt_id in params
@@ -999,6 +1000,7 @@ class Client(QObject):
         image_scale_found = image_scale_id in params
         latent_upscale_found = latent_upscale_id in params
         model_loader_found =  model_loader_id in params
+        vae_loader_found = vae_loader_id in params
         upscale_model_loader_found = upscale_model_loader_id in params
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
@@ -1049,6 +1051,11 @@ class Client(QObject):
 
         if model_loader_found:
             params[model_loader_id]["inputs"]["ckpt_name"] = self.cfg("sd_model", str)
+
+        if vae_loader_found:
+            params[vae_loader_id]["inputs"]["vae_name"] = self.cfg("sd_vae", str)
+        elif self.cfg("sd_vae", str) not in ["Automatic", "None"]:
+            self.load_vae(params)
 
         if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
