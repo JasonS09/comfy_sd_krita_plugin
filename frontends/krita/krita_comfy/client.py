@@ -2,22 +2,16 @@ import json
 import socket
 import uuid
 import re
+import ssl
 from math import ceil, floor
 from random import randint
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urljoin, urlparse, urlencode
 from urllib.request import Request, urlopen
-import ssl
 
-from krita import (
-    Qt,
-    QImage,
-    QObject,
-    QThread,
-    pyqtSignal,
-    QTimer
-)
+from PyQt5.QtGui import QImage
+from PyQt5.QtCore import QObject, QThread, pyqtSignal, QTimer
 
 from .config import Config
 from .defaults import (

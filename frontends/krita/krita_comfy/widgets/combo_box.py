@@ -1,7 +1,9 @@
 from functools import partial
 from typing import Union
 
-from krita import QComboBox, QHBoxLayout, Qt, QValidator
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QValidator
+from PyQt5.QtWidgets import QComboBox, QHBoxLayout
 
 from ..config import Config
 from .misc import QLabel

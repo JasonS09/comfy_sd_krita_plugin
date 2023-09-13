@@ -3,15 +3,11 @@ import re
 from itertools import cycle
 from math import ceil
 
-from krita import (
-    Krita, 
-    QBuffer, 
-    QByteArray, 
-    QImage, 
-    QIODevice, 
-    Qt,
-    QLayout
-)
+from PyQt5.QtCore import QBuffer, QByteArray, QIODevice, Qt
+from PyQt5.QtGui import QImage
+from PyQt5.QtWidgets import QLayout
+
+from krita import Krita
 
 from .config import Config
 from .defaults import (
@@ -25,6 +21,7 @@ from .defaults import (
     TAB_CONTROLNET,
     TAB_WORKFLOW,
 )
+
 
 def fix_prompt(prompt: str):
     """Replace empty prompts with None."""
@@ -59,6 +56,7 @@ def get_ext_args(ext_cfg: Config, ext_type: str, ext_name: str):
         args.append(val)
     return args
 
+
 def calculate_resized_image_dimensions(
         base_size: int, max_size: int, orig_width: int, orig_height: int
 ):
@@ -83,7 +81,8 @@ def calculate_resized_image_dimensions(
             width, height = rnd(ratio, max_size), max_size
     
     return width, height
-        
+
+
 def find_fixed_aspect_ratio(
     base_size: int, max_size: int, orig_width: int, orig_height: int
 ):
@@ -94,6 +93,7 @@ def find_fixed_aspect_ratio(
     width, height = calculate_resized_image_dimensions(base_size, max_size, orig_width, orig_height)
     
     return width/height
+
 
 def find_optimal_selection_region(
     base_size: int,
@@ -224,6 +224,7 @@ def get_workflow(ext_cfg: Config, get_workflow_func, mode: str):
             d.page_widget.cfg_init()
             d.raise_()
             break
+
 
 def reset_docker_layout():
     """NOTE: Default stacking of dockers hardcoded here."""

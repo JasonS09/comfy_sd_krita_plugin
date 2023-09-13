@@ -2,7 +2,7 @@ import json
 from functools import partial
 from typing import List
 
-from krita import QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from ..config import Config
 from ..script import script

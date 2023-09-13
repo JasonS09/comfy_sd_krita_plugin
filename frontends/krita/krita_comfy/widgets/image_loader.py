@@ -1,4 +1,6 @@
-from krita import QApplication, QFileDialog, QPixmap, QPushButton, QVBoxLayout, QHBoxLayout, Qt
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QApplication, QFileDialog, QPushButton, QVBoxLayout, QHBoxLayout
 from ..widgets import QLabel
 
 class ImageLoaderLayout(QVBoxLayout):

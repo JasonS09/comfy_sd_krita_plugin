@@ -1,20 +1,14 @@
-from dataclasses import dataclass, field
-from enum import Enum, unique
-from typing import List, Dict, Tuple
 import itertools
 import json
 import re
 import copy
+from dataclasses import dataclass, field
+from enum import Enum, unique
+from typing import List, Dict, Tuple
 
-from krita import (
-    QImage,
-    QByteArray,
-    QSize,
-    QBuffer,
-    QIODevice
-)
+from PyQt5.QtCore import QByteArray, QSize, QBuffer, QIODevice
+from PyQt5.QtGui import QImage
 
-from .config import DEFAULTS
 from .defaults import (
     DEFAULT_NODE_IDS
     , PROMPT

@@ -1,4 +1,4 @@
-from krita import QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from ..script import script
 from ..widgets import (

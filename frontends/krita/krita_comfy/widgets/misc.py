@@ -1,5 +1,5 @@
-from krita import QLabel as _QLabel
-from krita import Qt
+from PyQt5.QtWidgets import QLabel as _QLabel
+from PyQt5.QtCore import Qt
 
 
 class QLabel(_QLabel):

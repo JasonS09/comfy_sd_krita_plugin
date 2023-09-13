@@ -2,7 +2,7 @@ from functools import partial
 from math import isclose
 from typing import Union
 
-from krita import QDoubleSpinBox, QHBoxLayout, QSpinBox
+from PyQt5.QtWidgets import QDoubleSpinBox, QHBoxLayout, QSpinBox
 
 from ..config import Config
 from .misc import QLabel

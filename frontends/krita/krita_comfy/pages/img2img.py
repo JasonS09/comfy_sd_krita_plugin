@@ -1,4 +1,4 @@
-from krita import QPushButton
+from PyQt5.QtWidgets import QPushButton
 
 from ..script import script
 from ..widgets import TipsLayout

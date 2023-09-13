@@ -1,5 +1,4 @@
 from krita import DockWidgetFactory, DockWidgetFactoryBase, Krita
-
 from .defaults import (
     TAB_CONFIG,
     TAB_IMG2IMG,

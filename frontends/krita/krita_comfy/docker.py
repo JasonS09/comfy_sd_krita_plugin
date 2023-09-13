@@ -1,4 +1,5 @@
-from krita import DockWidget, QScrollArea
+from krita import DockWidget
+from PyQt5.QtWidgets import QScrollArea
 
 from .script import script
 from .style import style

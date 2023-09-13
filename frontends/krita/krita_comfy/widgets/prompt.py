@@ -1,5 +1,4 @@
-from krita import QPlainTextEdit, QSizePolicy, QVBoxLayout
-
+from PyQt5.QtWidgets import QPlainTextEdit, QSizePolicy, QVBoxLayout
 from ..config import Config
 
 

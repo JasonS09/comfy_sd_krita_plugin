@@ -1,15 +1,9 @@
-from krita import (
-    QApplication, 
-    QPixmap, 
-    QImage, 
-    QPushButton, 
-    QWidget, 
-    QVBoxLayout, 
-    QHBoxLayout, 
-    QStackedLayout, 
-    Qt
-)
 from functools import partial
+
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtWidgets import QApplication, QPushButton, QWidget, QVBoxLayout, QHBoxLayout, QStackedLayout
+
 from ..script import script
 from ..widgets import (
     QLabel, 
@@ -21,6 +15,7 @@ from ..widgets import (
     QSpinBoxLayout
 )
 from ..utils import img_to_b64, b64_to_img, clear_layout
+
 
 class ControlNetPage(QWidget):                                                      
     name = "ControlNet"
@@ -65,6 +60,7 @@ class ControlNetPage(QWidget):
 
         self.controlnet_unit.qcombo.currentTextChanged.connect(self.controlnet_unit_changed)
         script.status_changed.connect(lambda s: self.status_bar.set_status(s))
+
 
 class ControlNetUnitSettings(QWidget):    
     def __init__(self, cfg_unit_number: int = 0, *args, **kwargs):
