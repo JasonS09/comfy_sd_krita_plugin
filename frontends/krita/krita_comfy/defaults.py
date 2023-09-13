@@ -173,6 +173,7 @@ class Defaults:
     img2img_workflow: str = ""
     img2img_custom_workflow: bool = False
 
+    inpaint_auto_generate_mask: bool = True
     inpaint_prompt: str = ""
     inpaint_negative_prompt: str = ""
     inpaint_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])

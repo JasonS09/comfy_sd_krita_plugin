@@ -14,9 +14,11 @@ class InpaintPage(SDImgPageBase):
         self.layout.addLayout(self.denoising_strength_layout)
 
         self.invert_mask = QCheckBox(script.cfg, "inpaint_invert_mask", "Invert mask")
+        self.auto_generate_mask = QCheckBox(script.cfg, "inpaint_auto_generate_mask", "Auto generate transparency mask")
 
         inline1 = QHBoxLayout()
         inline1.addWidget(self.invert_mask)
+        inline1.addWidget(self.auto_generate_mask)
 
         self.fill_layout = QComboBoxLayout(
             script.cfg, "inpaint_fill_list", "inpaint_fill", label="Inpaint fill:"
@@ -52,6 +54,7 @@ class InpaintPage(SDImgPageBase):
         super(InpaintPage, self).cfg_init()
         self.fill_layout.cfg_init()
         self.invert_mask.cfg_init()
+        self.auto_generate_mask.cfg_init()
 
         self.tips.setVisible(not script.cfg("minimize_ui", bool))
 
@@ -59,6 +62,7 @@ class InpaintPage(SDImgPageBase):
         super(InpaintPage, self).cfg_connect()
         self.fill_layout.cfg_connect()
         self.invert_mask.cfg_connect()
+        self.auto_generate_mask.cfg_connect()
 
         self.btn.released.connect(lambda: script.action_inpaint())
         self.get_workflow_btn.released.connect(
