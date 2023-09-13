@@ -11,7 +11,7 @@ from urllib.parse import urljoin, urlparse, urlencode
 from urllib.request import Request, urlopen
 
 from PyQt5.QtGui import QImage
-from PyQt5.QtCore import QObject, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal, QTimer
 
 from .config import Config
 from .defaults import (
