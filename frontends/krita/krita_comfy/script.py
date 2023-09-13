@@ -360,10 +360,11 @@ class Script(QObject):
 
         mask_image, transparency_mask = self.get_mask_image() if is_inpaint else (None, None)
 
-        if is_inpaint and self.cfg("inpaint_auto_generate_mask", bool) and mask_image is not None:
+        if is_inpaint and mask_image is not None:
             # auto-hide mask layer before getting selection image
             self.node.setVisible(False)
-            self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
+            if self.cfg("inpaint_auto_generate_mask", bool):
+                self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
             self.doc.refreshProjection()
 
         sel_image = self.get_selection_image()
@@ -498,12 +499,13 @@ class Script(QObject):
 
         cb, glayer = self.basic_callback_crafter(mode)
         
-        if is_inpaint and self.cfg("inpaint_auto_generate_mask", bool) and mask_image is not None:
+        if is_inpaint and mask_image is not None:
             mask_image, transparency_mask = self.get_mask_image()
             self.node.setVisible(False)
             self.doc.refreshProjection()
             sel_image = self.get_selection_image()
-            self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
+            if self.cfg("inpaint_auto_generate_mask", bool):
+                self.inpaint_transparency_mask_inserter(glayer, transparency_mask)
         else:
             mask_image = sel_image = self.get_selection_image()
 
