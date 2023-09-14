@@ -999,6 +999,7 @@ class Client(QObject):
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
+        vae_loaded = False
 
         def remove_lora_from_prompt():
             pattern = self.lora_re
@@ -1050,6 +1051,7 @@ class Client(QObject):
             params[vae_loader_id]["inputs"]["vae_name"] = self.cfg("sd_vae", str)
         elif self.cfg("sd_vae", str) not in ["Automatic", "None"]:
             self.load_vae(params)
+            vae_loaded = True
 
         if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
@@ -1088,6 +1090,11 @@ class Client(QObject):
 
         if upscale_model_loader_found:
             params[upscale_model_loader_id]["inputs"]["model_name"] = self.cfg("upscaler_name", str)
+            if vae_loaded:
+                if DEFAULT_NODE_IDS["VAEDecode_upscale"] in params:
+                    params[DEFAULT_NODE_IDS["VAEDecode_upscale"]]["inputs"]["vae"] = [vae_loader_id, 0]
+                if DEFAULT_NODE_IDS["VAEEncode_upscale"] in params:
+                    params[DEFAULT_NODE_IDS["VAEEncode_upscale"]]["inputs"]["vae"] = [vae_loader_id, 0]
 
         if image_scale_found:
             params[image_scale_id]["inputs"]["height"] = original_height
