@@ -2,6 +2,8 @@ import json
 import re
 from itertools import cycle
 from math import ceil
+from pathlib import PurePath
+from typing import List, Tuple, Dict
 
 from PyQt5.QtCore import QBuffer, QByteArray, QIODevice, Qt
 from PyQt5.QtGui import QImage
@@ -24,7 +26,9 @@ from .defaults import (
 
 
 re_lora = r"<lora:([=\[\] \\/\w\d.-]+):(\-?[\d.]+)>"
-re_embedding = r"embedding\:([^ \n]+)"
+re_lora_start = r"<lora:([=\[\] \\/\w\d.-]+)"
+re_embedding = r"embedding\:([^ \n$]+)"
+
 
 def fix_prompt(prompt: str):
     """Replace empty prompts with None."""
@@ -232,10 +236,29 @@ def auto_complete_LoRA(cfg: Config, name: str) -> (bool, [str]):
 
 
 def auto_complete_embedding(cfg: Config, name: str) -> (bool, [str]):
-    embed_list: list[str] = cfg("sd_embedding_list", str)
+    embed_list: List[str] = cfg("sd_embedding_list", str)
     viable_embed = [embed for embed in embed_list if re.search('^'+re.escape(name)+'$', embed)]
     valid = len(viable_embed) == 1
     return valid, viable_embed
+
+
+def get_simple_lora_list(cfg: Config) -> List[str]:
+    lora_list: Dict[str, List[PurePath]] = {}
+    for lora in [PurePath(lora) for lora in cfg("sd_lora_list", str)]:
+        if lora_list.get(lora.stem) is not None:
+            lora_list[lora.stem].append(lora)
+        else:
+            lora_list[lora.stem] = [lora]
+
+    output_list = []
+    for k, v in lora_list.items():
+        if len(v) < 2:
+            output_list.append(k)
+        else:
+            for i in v:
+                output_list.append(str(i.with_suffix('')))
+
+    return output_list
 
 def reset_docker_layout():
     """NOTE: Default stacking of dockers hardcoded here."""

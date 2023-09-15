@@ -1,36 +1,58 @@
-import re
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QSyntaxHighlighter, QColor
+from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtGui import QFocusEvent, QKeyEvent, QTextCursor
 from PyQt5.QtWidgets import QPlainTextEdit, QSizePolicy, QVBoxLayout
+
 from ..config import Config
-from ..utils import auto_complete_LoRA, auto_complete_embedding, re_lora, re_embedding
-
-
-class QPromptHighLighter(QSyntaxHighlighter):
-    def __init__(self, cfg: Config, *args, **kwargs):
-        super(QSyntaxHighlighter, self).__init__(*args, **kwargs)
-
-        self.cfg = cfg
-        self.highlighters = [
-            [re_lora, auto_complete_LoRA],
-            [re_embedding, auto_complete_embedding]]
-
-    def highlightBlock(self, line):
-        for expression, func in self.highlighters:
-            for m in re.finditer(expression, line):
-                valid, names = func(self.cfg, m.group(1))
-                color: QColor = QColor(Qt.green)
-                color = color if valid else QColor(Qt.red)
-                color = color if len(names) < 2 else QColor(Qt.yellow)
-                self.setFormat(m.start(0), m.end(0)-m.start(0), color)
+from .prompt_complete import QPromptCompleter, QPromptHighLighter
 
 
 class QPromptEdit(QPlainTextEdit):
+    completer: QPromptCompleter = None
+
     def __init__(self, placeholder="Enter prompt...", num_lines=5, *args, **kwargs):
         super(QPromptEdit, self).__init__(*args, **kwargs)
         self.setPlaceholderText(placeholder)
         self.setFixedHeight(self.fontMetrics().lineSpacing() * num_lines)
         self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Maximum)
+
+    def setCompleter(self, completer: QPromptCompleter):
+        if self.completer:
+            self.disconnect(self.completer)
+        if not completer:
+            return
+
+        completer.setWidget(self)
+        self.completer = completer
+        self.completer.insertText.connect(self.insertCompletion)
+
+    def insertCompletion(self, text):
+        tc = self.textCursor()
+        extra = (len(text) - len(self.completer.completionPrefix()))
+        tc.movePosition(QTextCursor.Left)
+        tc.movePosition(QTextCursor.EndOfWord)
+        tc.insertText(text[-extra:])
+        self.setTextCursor(tc)
+        self.completer.popup().hide()
+
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        if self.completer:
+            self.completer.setWidget(self)
+        QPlainTextEdit.focusInEvent(self, e)
+
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        if self.completer is None:
+            QPlainTextEdit.keyPressEvent(self, e)
+            return
+
+        if e.key() == Qt.Key_Tab and self.completer.popup().isVisible():
+            self.completer.insertText.emit(self.completer.getSelected())
+            return
+
+        QPlainTextEdit.keyPressEvent(self, e)
+        tc: QTextCursor = self.textCursor()
+        tc.select(QTextCursor.WordUnderCursor)
+        cr: QRect = self.cursorRect()
+        self.completer.try_auto_complete(tc, cr)
 
 
 class QPromptLayout(QVBoxLayout):
@@ -54,8 +76,20 @@ class QPromptLayout(QVBoxLayout):
         self.prompt_cfg = prompt_cfg
         self.neg_prompt_cfg = neg_prompt_cfg
 
+        # Create AutoCompleter
+        self.completer = QPromptCompleter(cfg)
+        self.completer_neg = QPromptCompleter(cfg)
+
         self.qedit_prompt = QPromptEdit(placeholder=self.prompt_label)
         self.qedit_neg_prompt = QPromptEdit(placeholder=self.neg_prompt_label)
+
+        # Connect AutoCompleter
+        self.qedit_prompt.setCompleter(self.completer)
+        self.qedit_neg_prompt.setCompleter(self.completer_neg)
+
+        # Connect Highlighter
+        self.highlighter = QPromptHighLighter(cfg, self.qedit_prompt.document())
+        self.neg_highlighter = QPromptHighLighter(cfg, self.qedit_neg_prompt.document())
 
         self.addWidget(self.qedit_prompt)
         self.addWidget(self.qedit_neg_prompt)
