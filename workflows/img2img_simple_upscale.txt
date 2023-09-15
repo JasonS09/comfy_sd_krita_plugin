@@ -56,7 +56,7 @@ Inject this workflow to your img2img mode to perform img2img+upscale without a s
     "LoadBase64Image": {
         "class_type": "LoadBase64Image",
         "inputs": {
-            "image": "<<PrunedImageData>>"
+            "image": "<<SelectedImage>>"
         }
     },
     "VAEEncode": {

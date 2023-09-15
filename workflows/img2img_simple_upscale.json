@@ -55,7 +55,7 @@
     "LoadBase64Image": {
         "class_type": "LoadBase64Image",
         "inputs": {
-            "image": "<<PrunedImageData>>"
+            "image": "<<SelectedImage>>"
         }
     },
     "VAEEncode": {
