@@ -1,0 +1,142 @@
+Inject this workflow to your txt2img mode to perform txt2img+upscale without a second sampling pass:
+{
+    "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {
+            "ckpt_name": "dreamshaper_8.safetensors"
+        }
+    },
+    "8": {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": [
+                "KSampler_upscale",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    },
+    "SaveImage": {
+        "class_type": "SaveImage",
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "ImageScale",
+                0
+            ]
+        }
+    },
+    "ClipSetLastLayer": {
+        "class_type": "CLIPSetLastLayer",
+        "inputs": {
+            "stop_at_clip_layer": -1,
+            "clip": [
+                "4",
+                1
+            ]
+        }
+    },
+    "3": {
+        "class_type": "KSampler",
+        "inputs": {
+            "cfg": 8,
+            "denoise": 1,
+            "model": [
+                "4",
+                0
+            ],
+            "latent_image": [
+                "5",
+                0
+            ],
+            "negative": [
+                "7",
+                0
+            ],
+            "positive": [
+                "6",
+                0
+            ],
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
+            "seed": 15023347863461440430,
+            "steps": 10
+        }
+    },
+    "5": {
+        "class_type": "EmptyLatentImage",
+        "inputs": {
+            "batch_size": 1,
+            "height": 384,
+            "width": 768
+        }
+    },
+    "6": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": [
+                "ClipSetLastLayer",
+                0
+            ],
+            "text": "Digital drawing of three young wizards with black robes and pointy hats next to each other, dark, carrying glowing lamps, bushes in the background, at night, fantasy comic book art, (anime:0.5), outline, highly detailed, breathtaking"
+        }
+    },
+    "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": [
+                "ClipSetLastLayer",
+                0
+            ],
+            "text": "embedding:FastNegativeV2.pt, snow, castle, houses"
+        }
+    },
+    "VAEDecode_upscale": {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    },
+    "UpscaleModelLoader": {
+        "class_type": "UpscaleModelLoader",
+        "inputs": {
+            "model_name": "4x-UltraSharp.pth"
+        }
+    },
+    "ImageUpscaleWithModel": {
+        "class_type": "ImageUpscaleWithModel",
+        "inputs": {
+            "upscale_model": [
+                "UpscaleModelLoader",
+                0
+            ],
+            "image": [
+                "VAEDecode_upscale",
+                0
+            ]
+        }
+    },
+    "ImageScale": {
+        "class_type": "ImageScale",
+        "inputs": {
+            "upscale_method": "bilinear",
+            "width": 1798,
+            "height": 860,
+            "crop": "disabled",
+            "image": [
+                "ImageUpscaleWithModel",
+                0
+            ]
+        }
+    }
+}

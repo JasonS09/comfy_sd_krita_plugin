@@ -1,0 +1,180 @@
+{
+   "1": {
+        "inputs": {
+            "clip_name": "ip-adapter_sd15-image-encoder.bin"
+        },
+        "class_type": "CLIPVisionLoader"
+    },
+    "IPAdapterModelLoader": {
+        "inputs": {
+            "ipadapter_file": "ip-adapter-plus_sd15.bin"
+        },
+        "class_type": "IPAdapterModelLoader"
+    },
+    "LoadImage": {
+        "inputs": {
+            "image": "82j_eIf5.jpg",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage",
+        "is_changed": [
+            "1610735fc36e9bbd63c770f1133308999d8684812a0260d0694ec415a571d2d2"
+        ]
+    },
+    "31": {
+        "inputs": {
+            "weight": 1.0,
+            "model": [
+                "<<LastLoadedLora|4>>",
+                0
+            ],
+            "ipadapter": [
+                "IPAdapterModelLoader",
+                0
+            ],
+            "clip_vision_output": [
+                "33",
+                0
+            ]
+        },
+        "class_type": "IPAdapterApply"
+    },
+    "33": {
+        "inputs": {
+            "clip_vision": [
+                "1",
+                0
+            ],
+            "image": [
+                "LoadImage",
+                0
+            ]
+        },
+        "class_type": "IPAdapterCLIPVisionEncode"
+    }
+    "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {
+            "ckpt_name": "M4RV3LSDUNGEONSNEWV40COMICS_mD40.safetensors"
+        }
+    },
+    "8": {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    },
+    "SaveImage": {
+        "class_type": "SaveImage",
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        }
+    },
+    "ClipSetLastLayer": {
+        "class_type": "CLIPSetLastLayer",
+        "inputs": {
+            "stop_at_clip_layer": -1,
+            "clip": [
+                "4",
+                1
+            ]
+        }
+    },
+    "SetLatentNoiseMask": {
+        "class_type": "SetLatentNoiseMask",
+        "inputs": {
+            "samples": [
+                "VAEEncode",
+                0
+            ],
+            "mask": [
+                "LoadBase64ImageMask",
+                0
+            ]
+        }
+    },
+    "3": {
+        "class_type": "KSampler",
+        "inputs": {
+            "cfg": 8,
+            "denoise": 0.5,
+            "model": [
+                "31",
+                0
+            ],
+            "latent_image": [
+                "SetLatentNoiseMask",
+                0
+            ],
+            "negative": [
+                "7",
+                0
+            ],
+            "positive": [
+                "6",
+                0
+            ],
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
+            "seed": 17131024960057699459,
+            "steps": 20
+        }
+    },
+    "LoadBase64Image": {
+        "class_type": "LoadBase64Image",
+        "inputs": {
+            "image": "<<PrunedImageData>>"
+        }
+    },
+    "LoadBase64ImageMask": {
+        "class_type": "LoadBase64ImageMask",
+        "inputs": {
+            "image": "<<PrunedImageData>>",
+            "channel": "alpha"
+        }
+    },
+    "VAEEncode": {
+        "class_type": "VAEEncode",
+        "inputs": {
+            "pixels": [
+                "LoadBase64Image",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        }
+    },
+    "6": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": [
+                "ClipSetLastLayer",
+                0
+            ],
+            "text": "handsome Rocket Raccoon from Guardians of the Galaxy, face close up, red eyes, male, anthropomorphic, furry, highly detailed, award-winning, professional"
+        }
+    },
+    "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": [
+                "ClipSetLastLayer",
+                0
+            ],
+            "text": "embedding:FastNegativeV2.pt, female, goatee, goggles"
+        }
+    }
+}

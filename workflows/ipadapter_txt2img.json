@@ -1,0 +1,139 @@
+{
+    "1": {
+        "inputs": {
+            "clip_name": "ip-adapter_sd15-image-encoder.bin"
+        },
+        "class_type": "CLIPVisionLoader"
+    },
+    "IPAdapterModelLoader": {
+        "inputs": {
+            "ipadapter_file": "ip-adapter-plus_sd15.bin"
+        },
+        "class_type": "IPAdapterModelLoader"
+    },
+    "LoadImage": {
+        "inputs": {
+            "image": "82j_eIf5.jpg",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage",
+        "is_changed": [
+            "1610735fc36e9bbd63c770f1133308999d8684812a0260d0694ec415a571d2d2"
+        ]
+    },
+    "4": {
+        "inputs": {
+            "ckpt_name": "deliberate_v3.safetensors"
+        },
+        "class_type": "CheckpointLoaderSimple"
+    },
+    "6": {
+        "inputs": {
+            "text": "<<Prompt>>",
+            "clip": [
+                "<<LastLoadedLora|4>>",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode"
+    },
+    "7": {
+        "inputs": {
+            "text": "<<NegativePrompt>>",
+            "clip": [
+                "<<LastLoadedLora|4>>",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode"
+    },
+    "3": {
+        "inputs": {
+            "seed": 0,
+            "steps": 20,
+            "cfg": 7.0,
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
+            "denoise": 1.0,
+            "model": [
+                "31",
+                0
+            ],
+            "positive": [
+                "6",
+                0
+            ],
+            "negative": [
+                "7",
+                0
+            ],
+            "latent_image": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "KSampler"
+    },
+    "11": {
+        "inputs": {
+            "width": 384,
+            "height": 672,
+            "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage"
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        },
+        "class_type": "VAEDecode"
+    },
+    "20": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage"
+    },
+    "31": {
+        "inputs": {
+            "weight": 1.0,
+            "model": [
+                "<<LastLoadedLora|4>>",
+                0
+            ],
+            "ipadapter": [
+                "IPAdapterModelLoader",
+                0
+            ],
+            "clip_vision_output": [
+                "33",
+                0
+            ]
+        },
+        "class_type": "IPAdapterApply"
+    },
+    "33": {
+        "inputs": {
+            "clip_vision": [
+                "1",
+                0
+            ],
+            "image": [
+                "LoadImage",
+                0
+            ]
+        },
+        "class_type": "IPAdapterCLIPVisionEncode"
+    }
+}
