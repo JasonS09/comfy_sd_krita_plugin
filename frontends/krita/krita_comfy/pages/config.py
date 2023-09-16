@@ -23,9 +23,6 @@ class ConfigPage(QWidget):
         inline1.addWidget(self.base_url_reset)
 
         # Plugin settings
-        self.just_use_yaml = QCheckBox(
-            script.cfg, "just_use_yaml", "(unrecommended) Ignore settings"
-        )
         self.create_mask_layer = QCheckBox(
             script.cfg, "create_mask_layer", "Add transparency mask"
         )
@@ -85,7 +82,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.only_full_img_tiling)
         layout_inner.addWidget(self.include_grid)
         layout_inner.addWidget(self.save_temp_images)
-        # layout_inner.addWidget(self.just_use_yaml)
 
         layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
         layout_inner.addWidget(self.img2img_color_correct)
@@ -114,7 +110,6 @@ class ConfigPage(QWidget):
         if self.base_url.text() != base_url:
             self.base_url.setText(base_url)
 
-        self.just_use_yaml.cfg_init()
         self.create_mask_layer.cfg_init()
         self.save_temp_images.cfg_init()
         self.fix_aspect_ratio.cfg_init()
@@ -151,7 +146,6 @@ class ConfigPage(QWidget):
         self.base_url_reset.released.connect(
             lambda: self.base_url.setText(DEFAULTS.base_url)
         )
-        self.just_use_yaml.cfg_connect()
         self.create_mask_layer.cfg_connect()
         self.save_temp_images.cfg_connect()
         self.fix_aspect_ratio.cfg_connect()
