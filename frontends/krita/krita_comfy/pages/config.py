@@ -37,7 +37,6 @@ class ConfigPage(QWidget):
             script.cfg, "alt_dock_behavior", "Alt Docker Behaviour"
         )
         self.hide_layers = QCheckBox(script.cfg, "hide_layers", "Auto hide layers")
-        self.no_groups = QCheckBox(script.cfg, "no_groups", "Don't create group layers")
 
         # webUI/backend settings
         self.do_exact_steps = QCheckBox(
@@ -66,7 +65,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.fix_aspect_ratio)
         layout_inner.addWidget(self.create_mask_layer)
         layout_inner.addWidget(self.hide_layers)
-        layout_inner.addWidget(self.no_groups)
         layout_inner.addWidget(self.save_temp_images)
 
         layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
@@ -100,7 +98,6 @@ class ConfigPage(QWidget):
         self.minimize_ui.cfg_init()
         self.alt_docker.cfg_init()
         self.hide_layers.cfg_init()
-        self.no_groups.cfg_init()
 
         info_text = """
             <em>Tip:</em> Only a selected few backend/webUI settings are exposed above.<br/>
@@ -132,7 +129,6 @@ class ConfigPage(QWidget):
         self.minimize_ui.cfg_connect()
         self.alt_docker.cfg_connect()
         self.hide_layers.cfg_connect()
-        self.no_groups.cfg_connect()
 
         def restore_defaults():
             script.restore_defaults()
