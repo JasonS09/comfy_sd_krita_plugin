@@ -118,7 +118,7 @@ Use this inpainting workflow to make generations without the second KSampler pas
             "text": "<<NegativePrompt>>"
         }
     },
-    "VAEDecode_upscale": {
+    "8": {
         "class_type": "VAEDecode",
         "inputs": {
             "samples": [
@@ -139,7 +139,7 @@ Use this inpainting workflow to make generations without the second KSampler pas
                 0
             ],
             "image": [
-                "VAEDecode_upscale",
+                "8",
                 0
             ]
         }

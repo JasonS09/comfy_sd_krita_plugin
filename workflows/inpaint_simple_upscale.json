@@ -117,7 +117,7 @@
             "text": "<<NegativePrompt>>"
         }
     },
-    "VAEDecode_upscale": {
+    "8": {
         "class_type": "VAEDecode",
         "inputs": {
             "samples": [
@@ -138,7 +138,7 @@
                 0
             ],
             "image": [
-                "VAEDecode_upscale",
+                "8",
                 0
             ]
         }

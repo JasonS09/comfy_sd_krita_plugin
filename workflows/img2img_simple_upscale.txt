@@ -92,7 +92,7 @@ Inject this workflow to your img2img mode to perform img2img+upscale without a s
             "text": "embedding:FastNegative.safetensors, snow, daylight, photo, modern, face, wrinkles, indoors, flat"
         }
     },
-    "VAEDecode": {
+    "8": {
         "class_type": "VAEDecode",
         "inputs": {
             "samples": [
@@ -119,7 +119,7 @@ Inject this workflow to your img2img mode to perform img2img+upscale without a s
                 0
             ],
             "image": [
-                "VAEDecode",
+                "8",
                 0
             ]
         }

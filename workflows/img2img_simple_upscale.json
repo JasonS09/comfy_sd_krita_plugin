@@ -91,7 +91,7 @@
             "text": "embedding:FastNegative.safetensors, snow, daylight, photo, modern, face, wrinkles, indoors, flat"
         }
     },
-    "VAEDecode": {
+    "8": {
         "class_type": "VAEDecode",
         "inputs": {
             "samples": [
@@ -118,7 +118,7 @@
                 0
             ],
             "image": [
-                "VAEDecode",
+                "8",
                 0
             ]
         }
