@@ -53,8 +53,12 @@ class QPromptCompleter(QCompleter):
         self.highlighted.connect(self.setHighlighted)
         self.setMaxVisibleItems(5)
         self.cfg = cfg
+        self.rules: List[Tuple[str, List[str]]] = [
+            (re_embedding, self.cfg("sd_embedding_list", str)),
+            (re_lora_start, get_simple_lora_list(self.cfg))
+        ]
 
-    def set_string_list(self, keys: List[str]):  # "sd_embedding_list"
+    def set_string_list(self, keys: List[str]):
         self.model.setStringList(keys)
 
     def setHighlighted(self, text):
@@ -67,26 +71,24 @@ class QPromptCompleter(QCompleter):
         # Get the line
         tc.select(QTextCursor.LineUnderCursor)
         line = tc.selectedText()
-        # Select current word so we can replace it
-        tc.select(QTextCursor.WordUnderCursor)
-        # Match list and completion lists
-        rules: List[Tuple[str, List[str]]] = [
-            (re_embedding, self.cfg("sd_embedding_list", str)),
-            (re_lora_start, get_simple_lora_list(self.cfg))
-        ]
+
+        # Match re and completion lists
         rule: Tuple[str, List[str]] = None
-        match = None
+        match: re.Match[str] = None
 
         # match last occurrence of rule on the line
-        for r in rules:
-            match = re.findall(r[0] + "$", line)
-            if len(match) > 0:
+        for r in self.rules:
+            match = re.search(r[0] + "$", line)
+            if match is not None:
                 rule = r
                 break
 
-        if match is not None and len(match) > 0:
+        if match is not None:
+            # Select first match group so we can replace it
+            tc.movePosition(QTextCursor.StartOfLine, mode=QTextCursor.MoveAnchor)
+            tc.movePosition(QTextCursor.Right, mode=QTextCursor.MoveAnchor, n=match.span(1)[0])
+            tc.movePosition(QTextCursor.Right, mode=QTextCursor.KeepAnchor, n=match.span(1)[1])
             # update the completer for with the list for this rule
-            print(rule[1])
             self.set_string_list(rule[1])
             self.setCompletionPrefix(tc.selectedText())
             popup = self.popup()
