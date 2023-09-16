@@ -49,7 +49,6 @@ class ConfigPage(QWidget):
         self.no_groups = QCheckBox(script.cfg, "no_groups", "Don't create group layers")
 
         # webUI/backend settings
-        self.filter_nsfw = QCheckBox(script.cfg, "filter_nsfw", "Filter NSFW")
         self.img2img_color_correct = QCheckBox(
             script.cfg, "img2img_color_correct", "Color correct img2img"
         )
@@ -89,7 +88,6 @@ class ConfigPage(QWidget):
         # layout_inner.addWidget(self.just_use_yaml)
 
         layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
-        layout_inner.addWidget(self.filter_nsfw)
         layout_inner.addWidget(self.img2img_color_correct)
         layout_inner.addWidget(self.inpaint_color_correct)
         layout_inner.addWidget(self.do_exact_steps)
@@ -122,7 +120,6 @@ class ConfigPage(QWidget):
         self.fix_aspect_ratio.cfg_init()
         self.only_full_img_tiling.cfg_init()
         self.include_grid.cfg_init()
-        self.filter_nsfw.cfg_init()
         self.img2img_color_correct.cfg_init()
         self.inpaint_color_correct.cfg_init()
         self.do_exact_steps.cfg_init()
@@ -160,7 +157,6 @@ class ConfigPage(QWidget):
         self.fix_aspect_ratio.cfg_connect()
         self.only_full_img_tiling.cfg_connect()
         self.include_grid.cfg_connect()
-        self.filter_nsfw.cfg_connect()
         self.img2img_color_correct.cfg_connect()
         self.inpaint_color_correct.cfg_connect()
         self.do_exact_steps.cfg_connect()

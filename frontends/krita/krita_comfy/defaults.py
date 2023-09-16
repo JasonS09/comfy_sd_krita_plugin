@@ -114,7 +114,6 @@ class Defaults:
     save_temp_images: bool = False
     fix_aspect_ratio: bool = True
     only_full_img_tiling: bool = True
-    filter_nsfw: bool = False
     do_exact_steps: bool = True
     sample_path: str = "./tmp"
     minimize_ui: bool = False
