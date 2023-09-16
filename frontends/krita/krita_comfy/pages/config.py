@@ -32,9 +32,6 @@ class ConfigPage(QWidget):
         self.fix_aspect_ratio = QCheckBox(
             script.cfg, "fix_aspect_ratio", "Adjust selection aspect ratio"
         )
-        self.include_grid = QCheckBox(
-            script.cfg, "include_grid", "Include txt2img/img2img grid"
-        )
         self.minimize_ui = QCheckBox(script.cfg, "minimize_ui", "Squeeze the UI")
         self.alt_docker = QCheckBox(
             script.cfg, "alt_dock_behavior", "Alt Docker Behaviour"
@@ -76,7 +73,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.create_mask_layer)
         layout_inner.addWidget(self.hide_layers)
         layout_inner.addWidget(self.no_groups)
-        layout_inner.addWidget(self.include_grid)
         layout_inner.addWidget(self.save_temp_images)
 
         layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
@@ -108,8 +104,6 @@ class ConfigPage(QWidget):
 
         self.create_mask_layer.cfg_init()
         self.save_temp_images.cfg_init()
-        self.fix_aspect_ratio.cfg_init()
-        self.include_grid.cfg_init()
         self.img2img_color_correct.cfg_init()
         self.inpaint_color_correct.cfg_init()
         self.do_exact_steps.cfg_init()
@@ -144,7 +138,6 @@ class ConfigPage(QWidget):
         self.create_mask_layer.cfg_connect()
         self.save_temp_images.cfg_connect()
         self.fix_aspect_ratio.cfg_connect()
-        self.include_grid.cfg_connect()
         self.img2img_color_correct.cfg_connect()
         self.inpaint_color_correct.cfg_connect()
         self.do_exact_steps.cfg_connect()
