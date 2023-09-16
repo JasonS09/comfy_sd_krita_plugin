@@ -22,10 +22,6 @@ class ConfigPage(QWidget):
         inline1.addWidget(self.base_url)
         inline1.addWidget(self.base_url_reset)
 
-        self.enc_key = QLineEditLayout(
-            script.cfg, "encryption_key", "Optional Encryption Key"
-        )
-
         # Plugin settings
         self.just_use_yaml = QCheckBox(
             script.cfg, "just_use_yaml", "(unrecommended) Ignore settings"
@@ -106,7 +102,6 @@ class ConfigPage(QWidget):
         layout.addWidget(self.status_bar)
         layout.addWidget(QLabel("<em>Backend url:</em>"))
         layout.addLayout(inline1)
-        layout.addLayout(self.enc_key)
         layout.addLayout(layout_inner)
         layout.addWidget(self.refresh_btn)
         layout.addWidget(self.restore_defaults)
@@ -121,7 +116,6 @@ class ConfigPage(QWidget):
         if self.base_url.text() != base_url:
             self.base_url.setText(base_url)
 
-        self.enc_key.cfg_init()
         self.just_use_yaml.cfg_init()
         self.create_mask_layer.cfg_init()
         self.save_temp_images.cfg_init()
@@ -141,10 +135,14 @@ class ConfigPage(QWidget):
             <em>Tip:</em> Only a selected few backend/webUI settings are exposed above.<br/>
             <em>Tip:</em> You should look through & configure all the backend/webUI settings at least once.
             <br/><br/>
-            <a href="http://127.0.0.1:7860/" target="_blank">Configure all settings in webUI</a><br/>
-            <a href="https://github.com/Interpause/auto-sd-paint-ext/wiki" target="_blank">Read the guide</a><br/>
-            <a href="https://github.com/Interpause/auto-sd-paint-ext/issues" target="_blank">Report bugs or suggest features</a>
-            """
+            <a href="{}" target="_blank">Configure all settings in webUI</a><br/>
+            <a href="{}" target="_blank">Read the guide</a><br/>
+            <a href="{}" target="_blank">Report bugs or suggest features</a>
+            """.format(
+            script.cfg("base_url", str),
+            "https://github.com/JasonS09/comfy_sd_krita_plugin/wiki",
+            "https://github.com/JasonS09/comfy_sd_krita_plugin/issues",
+            )
         if script.cfg("minimize_ui", bool):
             info_text = "\n".join(info_text.split("\n")[-4:-1])
         self.info_label.setText(info_text)
@@ -156,7 +154,6 @@ class ConfigPage(QWidget):
         self.base_url_reset.released.connect(
             lambda: self.base_url.setText(DEFAULTS.base_url)
         )
-        self.enc_key.cfg_connect()
         self.just_use_yaml.cfg_connect()
         self.create_mask_layer.cfg_connect()
         self.save_temp_images.cfg_connect()

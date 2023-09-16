@@ -109,7 +109,6 @@ NEGATIVE_PROMPT = "<<NegativePrompt>>"
 @dataclass(frozen=True)
 class Defaults:
     base_url: str = "http://127.0.0.1:8188"
-    encryption_key: str = ""
     just_use_yaml: bool = False
     create_mask_layer: bool = True
     save_temp_images: bool = False
