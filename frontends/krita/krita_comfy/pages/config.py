@@ -38,13 +38,6 @@ class ConfigPage(QWidget):
         )
         self.hide_layers = QCheckBox(script.cfg, "hide_layers", "Auto hide layers")
 
-        # webUI/backend settings
-        self.do_exact_steps = QCheckBox(
-            script.cfg,
-            "do_exact_steps",
-            "Exact number of steps for denoising",
-        )
-
         self.refresh_btn = QPushButton("Auto-Refresh Options Now")
         self.restore_defaults = QPushButton("Restore Defaults")
 
@@ -68,7 +61,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.save_temp_images)
 
         layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
-        layout_inner.addWidget(self.do_exact_steps)
 
         # TODO: figure out how to set height of scroll area when there are too many options
         # or maybe an option search bar
@@ -94,7 +86,6 @@ class ConfigPage(QWidget):
 
         self.create_mask_layer.cfg_init()
         self.save_temp_images.cfg_init()
-        self.do_exact_steps.cfg_init()
         self.minimize_ui.cfg_init()
         self.alt_docker.cfg_init()
         self.hide_layers.cfg_init()
@@ -125,7 +116,6 @@ class ConfigPage(QWidget):
         self.create_mask_layer.cfg_connect()
         self.save_temp_images.cfg_connect()
         self.fix_aspect_ratio.cfg_connect()
-        self.do_exact_steps.cfg_connect()
         self.minimize_ui.cfg_connect()
         self.alt_docker.cfg_connect()
         self.hide_layers.cfg_connect()

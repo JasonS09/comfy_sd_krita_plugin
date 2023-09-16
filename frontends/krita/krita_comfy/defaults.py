@@ -112,7 +112,6 @@ class Defaults:
     create_mask_layer: bool = True
     save_temp_images: bool = False
     fix_aspect_ratio: bool = True
-    do_exact_steps: bool = True
     sample_path: str = "./tmp"
     minimize_ui: bool = False
     first_setup: bool = True  # only used for the initial docker layout
