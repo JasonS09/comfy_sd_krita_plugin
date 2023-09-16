@@ -58,9 +58,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.fix_aspect_ratio)
         layout_inner.addWidget(self.create_mask_layer)
         layout_inner.addWidget(self.hide_layers)
-        layout_inner.addWidget(self.save_temp_images)
-
-        layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
 
         # TODO: figure out how to set height of scroll area when there are too many options
         # or maybe an option search bar
