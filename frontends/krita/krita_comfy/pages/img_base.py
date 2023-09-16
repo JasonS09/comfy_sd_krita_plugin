@@ -5,6 +5,7 @@ from ..widgets import (
     QComboBoxLayout,
     QLineEditLayout,
     QPromptLayout,
+    QPromptHighLighter,
     QSpinBoxLayout,
     StatusBar,
     QCheckBox
@@ -25,6 +26,10 @@ class SDImgPageBase(QWidget):
         self.prompt_layout = QPromptLayout(
             script.cfg, f"{cfg_prefix}_prompt", f"{cfg_prefix}_negative_prompt"
         )
+
+        # Connect Highlighter
+        self.highlighter = QPromptHighLighter(script.cfg, self.prompt_layout.qedit_prompt.document())
+        self.neg_highlighter = QPromptHighLighter(script.cfg, self.prompt_layout.qedit_neg_prompt.document())
 
         self.prompt_layer_load = QPushButton("Load Prompt from Layer")
 

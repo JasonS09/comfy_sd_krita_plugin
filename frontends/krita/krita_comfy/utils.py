@@ -23,6 +23,9 @@ from .defaults import (
 )
 
 
+re_lora = r"<lora:([=\[\] \\/\w\d.-]+):(\-?[\d.]+)>"
+re_embedding = r"embedding\:([^ \n]+)"
+
 def fix_prompt(prompt: str):
     """Replace empty prompts with None."""
     return prompt if prompt != "" else None
@@ -225,6 +228,19 @@ def get_workflow(ext_cfg: Config, get_workflow_func, mode: str):
             d.raise_()
             break
 
+
+def auto_complete_LoRA(cfg: Config, name: str) -> (bool, [str]):
+    lora_list = [re.sub(".safetensors$", "", lora, flags=re.I) for lora in cfg("sd_lora_list", str)]
+    viable_loras = [lora for lora in lora_list if re.search(re.escape(name)+"$", lora, flags=re.I)]
+    valid = len(viable_loras) == 1
+    return valid, viable_loras
+
+
+def auto_complete_embedding(cfg: Config, name: str) -> (bool, [str]):
+    embed_list: list[str] = cfg("sd_embedding_list", str)
+    viable_embed = [embed for embed in embed_list if re.search('^'+re.escape(name)+'$', embed)]
+    valid = len(viable_embed) == 1
+    return valid, viable_embed
 
 def reset_docker_layout():
     """NOTE: Default stacking of dockers hardcoded here."""

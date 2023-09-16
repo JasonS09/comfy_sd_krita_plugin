@@ -539,8 +539,9 @@ class Script(QObject):
             def restore():
                 # assume newly flattened layer is active
                 result = self.doc.activeNode()
-                result.setVisible(orig_visible)
-                result.setName(orig_name)
+                if result is not None: # if not lets not crash
+                    result.setVisible(orig_visible)
+                    result.setName(orig_name)
 
                 add_mask(layers, cur_selection)
 
@@ -613,6 +614,7 @@ class Script(QObject):
     def action_update_config(self):
         """Update certain config/state from the backend."""
         self.client.get_config()
+        self.client.get_embbeddings()
             
     def action_update_controlnet_config(self):
         """Update controlnet config from the backend."""
