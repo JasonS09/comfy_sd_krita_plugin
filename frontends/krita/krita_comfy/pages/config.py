@@ -32,9 +32,6 @@ class ConfigPage(QWidget):
         self.fix_aspect_ratio = QCheckBox(
             script.cfg, "fix_aspect_ratio", "Adjust selection aspect ratio"
         )
-        self.only_full_img_tiling = QCheckBox(
-            script.cfg, "only_full_img_tiling", "Disallow tiling with selection"
-        )
         self.include_grid = QCheckBox(
             script.cfg, "include_grid", "Include txt2img/img2img grid"
         )
@@ -79,7 +76,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.create_mask_layer)
         layout_inner.addWidget(self.hide_layers)
         layout_inner.addWidget(self.no_groups)
-        layout_inner.addWidget(self.only_full_img_tiling)
         layout_inner.addWidget(self.include_grid)
         layout_inner.addWidget(self.save_temp_images)
 
@@ -113,7 +109,6 @@ class ConfigPage(QWidget):
         self.create_mask_layer.cfg_init()
         self.save_temp_images.cfg_init()
         self.fix_aspect_ratio.cfg_init()
-        self.only_full_img_tiling.cfg_init()
         self.include_grid.cfg_init()
         self.img2img_color_correct.cfg_init()
         self.inpaint_color_correct.cfg_init()
@@ -149,7 +144,6 @@ class ConfigPage(QWidget):
         self.create_mask_layer.cfg_connect()
         self.save_temp_images.cfg_connect()
         self.fix_aspect_ratio.cfg_connect()
-        self.only_full_img_tiling.cfg_connect()
         self.include_grid.cfg_connect()
         self.img2img_color_correct.cfg_connect()
         self.inpaint_color_correct.cfg_connect()

@@ -112,7 +112,6 @@ class Defaults:
     create_mask_layer: bool = True
     save_temp_images: bool = False
     fix_aspect_ratio: bool = True
-    only_full_img_tiling: bool = True
     do_exact_steps: bool = True
     sample_path: str = "./tmp"
     minimize_ui: bool = False
