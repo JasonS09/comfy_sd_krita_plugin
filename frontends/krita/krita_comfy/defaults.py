@@ -163,7 +163,6 @@ class Defaults:
     img2img_cfg_scale: float = 8.0
     img2img_denoising_strength: float = 0.5
     img2img_seed: str = ""
-    img2img_color_correct: bool = False
     img2img_input_save_as: str = "input.png"
     img2img_workflow: str = ""
     img2img_custom_workflow: bool = False
@@ -187,7 +186,6 @@ class Defaults:
     inpaint_fill: str = "preserve"
     # inpaint_full_res: bool = False
     # inpaint_full_res_padding: int = 32
-    inpaint_color_correct: bool = False
     inpaint_mask_weight: float = 1.0
     inpaint_workflow: str = ""
     inpaint_custom_workflow: bool = False
