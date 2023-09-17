@@ -109,20 +109,14 @@ NEGATIVE_PROMPT = "<<NegativePrompt>>"
 @dataclass(frozen=True)
 class Defaults:
     base_url: str = "http://127.0.0.1:8188"
-    encryption_key: str = ""
-    just_use_yaml: bool = False
     create_mask_layer: bool = True
     save_temp_images: bool = False
     fix_aspect_ratio: bool = True
-    only_full_img_tiling: bool = True
-    filter_nsfw: bool = False
-    do_exact_steps: bool = True
     sample_path: str = "./tmp"
     minimize_ui: bool = False
     first_setup: bool = True  # only used for the initial docker layout
     alt_dock_behavior: bool = False
     hide_layers: bool = True
-    no_groups: bool = False
     disable_sddebz_highres: bool = False
 
     sd_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
@@ -144,7 +138,6 @@ class Defaults:
     face_restorer_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     face_restorer_model: str = "None"
     codeformer_weight: float = 0.5
-    include_grid: bool = False
 
     txt2img_prompt: str = ""
     txt2img_negative_prompt: str = ""
@@ -169,7 +162,6 @@ class Defaults:
     img2img_cfg_scale: float = 8.0
     img2img_denoising_strength: float = 0.5
     img2img_seed: str = ""
-    img2img_color_correct: bool = False
     img2img_input_save_as: str = "input.png"
     img2img_workflow: str = ""
     img2img_custom_workflow: bool = False
@@ -193,7 +185,6 @@ class Defaults:
     inpaint_fill: str = "preserve"
     # inpaint_full_res: bool = False
     # inpaint_full_res_padding: int = 32
-    inpaint_color_correct: bool = False
     inpaint_mask_weight: float = 1.0
     inpaint_workflow: str = ""
     inpaint_custom_workflow: bool = False

@@ -34,7 +34,6 @@ from .defaults import (
     THREADED,
 )
 from .utils import (
-    bytewise_xor,
     img_to_b64,
     calculate_resized_image_dimensions,
     re_lora,
@@ -76,7 +75,6 @@ class AsyncRequest(QObject):
         timeout: int = ...,
         method: str = ...,
         headers: dict = ...,
-        key: str = None,
     ):
         """Create an AsyncRequest object.
 
@@ -89,7 +87,6 @@ class AsyncRequest(QObject):
             data (Any, optional): Payload to send. Defaults to None.
             timeout (int, optional): Timeout for request. Defaults to `...`.
             method (str, optional): Which HTTP method to use. Defaults to `...`.
-            key (Union[str, None], Optional): Key to use for encryption/decryption. Defaults to None.
             headers (dict, optional): dictionary of headers to send to request.
             is_upload: if set to true, request will be sent as multipart/form-data type.
         """
@@ -98,12 +95,6 @@ class AsyncRequest(QObject):
         self.data = data
         self.headers = {} if headers is ... else headers
 
-        self.key = None
-        if isinstance(key, str) and key.strip() != "":
-            self.key = key.strip().encode("utf-8")
-
-        if self.key is not None:
-            self.headers["X-Encrypted-Body"] = "XOR"
         if timeout is not ...:
             self.timeout = timeout
         if method is ...:
@@ -114,12 +105,6 @@ class AsyncRequest(QObject):
             self.data = None if data is None else json.dumps(
                 data).encode("utf-8")
 
-            if self.data is not None and self.key is not None:
-                # print(f"Encrypting with ${self.key}:\n{self.data}")
-                self.data = bytewise_xor(self.data, self.key)
-                # print(f"Encrypt Result:\n{self.data}")
-                self.headers["Content-Type"] = "application/json"
-                self.headers["Content-Length"] = str(len(self.data))
         self.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.200"
         #self.headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
     def run(self):
@@ -133,12 +118,6 @@ class AsyncRequest(QObject):
             req = Request(url, headers=self.headers, method=self.method)
             with urlopen(req, self.data if self.method == "POST" else None, self.timeout, context=ctx) as res:
                 data = res.read()
-                enc_type = res.getheader("X-Encrypted-Body", None)
-                assert enc_type in {"XOR", None}, "Unknown server encryption!"
-                if enc_type == "XOR":
-                    assert self.key, "Key needed to decrypt server response!"
-                    print(f"Decrypting with ${self.key}:\n{data}")
-                    data = bytewise_xor(data, self.key)
                 self.result.emit(json.loads(data))
         except ValueError as e:
             self.result.emit(data)
@@ -293,7 +272,6 @@ class Client(QObject):
             url,
             body,
             LONG_TIMEOUT if is_long else SHORT_TIMEOUT,
-            key=self.cfg("encryption_key"),
             method=method,
             headers=headers
         )

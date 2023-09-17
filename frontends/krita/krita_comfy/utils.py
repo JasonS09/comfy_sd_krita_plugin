@@ -201,11 +201,6 @@ def b64_to_img(enc: str):
     return QImage.fromData(ba) #Removed explicit format to support other image formats.
 
 
-def bytewise_xor(msg: bytes, key: bytes):
-    """Used for decrypting/encrypting request/response bodies."""
-    return bytes(v ^ k for v, k in zip(msg, cycle(key)))
-
-
 def clear_layout(layout: QLayout):
     if layout is not None:
         while layout.count():

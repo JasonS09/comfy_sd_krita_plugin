@@ -22,14 +22,7 @@ class ConfigPage(QWidget):
         inline1.addWidget(self.base_url)
         inline1.addWidget(self.base_url_reset)
 
-        self.enc_key = QLineEditLayout(
-            script.cfg, "encryption_key", "Optional Encryption Key"
-        )
-
         # Plugin settings
-        self.just_use_yaml = QCheckBox(
-            script.cfg, "just_use_yaml", "(unrecommended) Ignore settings"
-        )
         self.create_mask_layer = QCheckBox(
             script.cfg, "create_mask_layer", "Add transparency mask"
         )
@@ -39,32 +32,11 @@ class ConfigPage(QWidget):
         self.fix_aspect_ratio = QCheckBox(
             script.cfg, "fix_aspect_ratio", "Adjust selection aspect ratio"
         )
-        self.only_full_img_tiling = QCheckBox(
-            script.cfg, "only_full_img_tiling", "Disallow tiling with selection"
-        )
-        self.include_grid = QCheckBox(
-            script.cfg, "include_grid", "Include txt2img/img2img grid"
-        )
         self.minimize_ui = QCheckBox(script.cfg, "minimize_ui", "Squeeze the UI")
         self.alt_docker = QCheckBox(
             script.cfg, "alt_dock_behavior", "Alt Docker Behaviour"
         )
         self.hide_layers = QCheckBox(script.cfg, "hide_layers", "Auto hide layers")
-        self.no_groups = QCheckBox(script.cfg, "no_groups", "Don't create group layers")
-
-        # webUI/backend settings
-        self.filter_nsfw = QCheckBox(script.cfg, "filter_nsfw", "Filter NSFW")
-        self.img2img_color_correct = QCheckBox(
-            script.cfg, "img2img_color_correct", "Color correct img2img"
-        )
-        self.inpaint_color_correct = QCheckBox(
-            script.cfg, "inpaint_color_correct", "Color correct inpaint"
-        )
-        self.do_exact_steps = QCheckBox(
-            script.cfg,
-            "do_exact_steps",
-            "Exact number of steps for denoising",
-        )
 
         self.refresh_btn = QPushButton("Auto-Refresh Options Now")
         self.restore_defaults = QPushButton("Restore Defaults")
@@ -86,17 +58,6 @@ class ConfigPage(QWidget):
         layout_inner.addWidget(self.fix_aspect_ratio)
         layout_inner.addWidget(self.create_mask_layer)
         layout_inner.addWidget(self.hide_layers)
-        layout_inner.addWidget(self.no_groups)
-        layout_inner.addWidget(self.only_full_img_tiling)
-        layout_inner.addWidget(self.include_grid)
-        layout_inner.addWidget(self.save_temp_images)
-        # layout_inner.addWidget(self.just_use_yaml)
-
-        layout_inner.addWidget(QLabel("<em>Backend/webUI settings:</em>"))
-        layout_inner.addWidget(self.filter_nsfw)
-        layout_inner.addWidget(self.img2img_color_correct)
-        layout_inner.addWidget(self.inpaint_color_correct)
-        layout_inner.addWidget(self.do_exact_steps)
 
         # TODO: figure out how to set height of scroll area when there are too many options
         # or maybe an option search bar
@@ -106,7 +67,6 @@ class ConfigPage(QWidget):
         layout.addWidget(self.status_bar)
         layout.addWidget(QLabel("<em>Backend url:</em>"))
         layout.addLayout(inline1)
-        layout.addLayout(self.enc_key)
         layout.addLayout(layout_inner)
         layout.addWidget(self.refresh_btn)
         layout.addWidget(self.restore_defaults)
@@ -121,30 +81,24 @@ class ConfigPage(QWidget):
         if self.base_url.text() != base_url:
             self.base_url.setText(base_url)
 
-        self.enc_key.cfg_init()
-        self.just_use_yaml.cfg_init()
         self.create_mask_layer.cfg_init()
         self.save_temp_images.cfg_init()
-        self.fix_aspect_ratio.cfg_init()
-        self.only_full_img_tiling.cfg_init()
-        self.include_grid.cfg_init()
-        self.filter_nsfw.cfg_init()
-        self.img2img_color_correct.cfg_init()
-        self.inpaint_color_correct.cfg_init()
-        self.do_exact_steps.cfg_init()
         self.minimize_ui.cfg_init()
         self.alt_docker.cfg_init()
         self.hide_layers.cfg_init()
-        self.no_groups.cfg_init()
 
         info_text = """
             <em>Tip:</em> Only a selected few backend/webUI settings are exposed above.<br/>
             <em>Tip:</em> You should look through & configure all the backend/webUI settings at least once.
             <br/><br/>
-            <a href="http://127.0.0.1:7860/" target="_blank">Configure all settings in webUI</a><br/>
-            <a href="https://github.com/Interpause/auto-sd-paint-ext/wiki" target="_blank">Read the guide</a><br/>
-            <a href="https://github.com/Interpause/auto-sd-paint-ext/issues" target="_blank">Report bugs or suggest features</a>
-            """
+            <a href="{}" target="_blank">Configure all settings in webUI</a><br/>
+            <a href="{}" target="_blank">Read the guide</a><br/>
+            <a href="{}" target="_blank">Report bugs or suggest features</a>
+            """.format(
+            script.cfg("base_url", str),
+            "https://github.com/JasonS09/comfy_sd_krita_plugin/wiki",
+            "https://github.com/JasonS09/comfy_sd_krita_plugin/issues",
+            )
         if script.cfg("minimize_ui", bool):
             info_text = "\n".join(info_text.split("\n")[-4:-1])
         self.info_label.setText(info_text)
@@ -156,21 +110,12 @@ class ConfigPage(QWidget):
         self.base_url_reset.released.connect(
             lambda: self.base_url.setText(DEFAULTS.base_url)
         )
-        self.enc_key.cfg_connect()
-        self.just_use_yaml.cfg_connect()
         self.create_mask_layer.cfg_connect()
         self.save_temp_images.cfg_connect()
         self.fix_aspect_ratio.cfg_connect()
-        self.only_full_img_tiling.cfg_connect()
-        self.include_grid.cfg_connect()
-        self.filter_nsfw.cfg_connect()
-        self.img2img_color_correct.cfg_connect()
-        self.inpaint_color_correct.cfg_connect()
-        self.do_exact_steps.cfg_connect()
         self.minimize_ui.cfg_connect()
         self.alt_docker.cfg_connect()
         self.hide_layers.cfg_connect()
-        self.no_groups.cfg_connect()
 
         def restore_defaults():
             script.restore_defaults()
