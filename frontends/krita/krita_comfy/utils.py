@@ -228,25 +228,32 @@ def get_workflow(ext_cfg: Config, get_workflow_func, mode: str):
             break
 
 
-def auto_complete_LoRA(cfg: Config, name: str) -> (bool, [str]):
+def fuzzy_match_LoRA(cfg: Config, name: str) -> (bool, [str]):
+    # Take the given string and attempt to match it to the sd_lora_list
+    # Return true if we should use the return string instead
     lora_list = [re.sub(".safetensors$", "", lora, flags=re.I) for lora in cfg("sd_lora_list", str)]
     viable_loras = [lora for lora in lora_list if re.search(re.escape(name)+"$", lora, flags=re.I)]
     valid = len(viable_loras) == 1
     return valid, viable_loras
 
 
-def auto_complete_embedding(cfg: Config, name: str) -> (bool, [str]):
+def fuzzy_match_embedding(cfg: Config, name: str) -> (bool, [str]):
+    # Take the given string and attempt to match it to the sd_embedding_list
+    # Return true if we should use the return string instead
     embed_list: List[str] = cfg("sd_embedding_list", str)
     viable_embed = [embed for embed in embed_list if re.search('^'+re.escape(name)+'$', embed)]
     valid = len(viable_embed) == 1
     return valid, viable_embed
 
 
-def get_simple_lora_list(cfg: Config) -> List[str]:
+def get_autocomplete_lora_list(cfg: Config) -> List[str]:
+    # Return a list of lora names
+    # unless there are lora with the same name under diffrent paths
+    # TODO look into QCompleter::splitPath
     lora_list: Dict[str, List[PurePath]] = {}
     for lora in [PurePath(lora) for lora in cfg("sd_lora_list", str)]:
         if lora_list.get(lora.stem) is not None:
-            lora_list[lora.stem].append(lora)
+            lora_list[lora.stem].append(lora.with_suffix(''))  # Remove .safetensors
         else:
             lora_list[lora.stem] = [lora]
 

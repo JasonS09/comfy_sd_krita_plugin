@@ -32,7 +32,7 @@ class QPromptEdit(QPlainTextEdit):
         tc.movePosition(QTextCursor.EndOfWord)
         tc.insertText(text[-extra:])
         self.setTextCursor(tc)
-        self.completer.popup().hide()
+        self.completer.hide_popup()
 
     def focusInEvent(self, e: QFocusEvent) -> None:
         if self.completer:
@@ -44,14 +44,17 @@ class QPromptEdit(QPlainTextEdit):
             QPlainTextEdit.keyPressEvent(self, e)
             return
 
-        if e.key() == Qt.Key_Tab and self.completer.popup().isVisible():
-            self.completer.insertText.emit(self.completer.getSelected())
-            return
+        if self.completer.is_popup_visible():
+            key = e.key()
+            if key == Qt.Key_Enter or key == Qt.Key_Return:
+                self.completer.insertText.emit(self.completer.getSelected())
+                return
 
         QPlainTextEdit.keyPressEvent(self, e)
         tc: QTextCursor = self.textCursor()
-        tc.select(QTextCursor.WordUnderCursor)
         cr: QRect = self.cursorRect()
+        tc.select(QTextCursor.LineUnderCursor)
+        self.completer.setWidget(self)
         self.completer.try_auto_complete(tc, cr)
 
 

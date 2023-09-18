@@ -38,7 +38,7 @@ from .utils import (
     calculate_resized_image_dimensions,
     re_lora,
     re_embedding,
-    auto_complete_LoRA
+    fuzzy_match_LoRA
 )
 
 from .prompt import PromptResponse
@@ -407,7 +407,7 @@ class Client(QObject):
             # Loop through the matches and create a node for each element
             for match in matches:
                 # Extract the lora name and the strength number from the match
-                lora_valid, lora_names = auto_complete_LoRA(self.cfg, match[0])
+                lora_valid, lora_names = fuzzy_match_LoRA(self.cfg, match[0])
                 lora_name = lora_names[0] if lora_valid else match[0]
                 strength_number = float(match[1])
 
