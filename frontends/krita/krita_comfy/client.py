@@ -705,7 +705,7 @@ class Client(QObject):
                 controlnetloader_node_id: controlnet_loader_node
             })
 
-        inputs = self.cfg(f"controlnet{unit}_inputs")
+        inputs = self.cfg(f"controlnet{unit}_inputs", dict)
         if preprocessor not in ["None", "Revision"]:
             inputs.update({"image": [imageloader_node_id, 0]})
 
