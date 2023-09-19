@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional
+from typing import List, Optional, Iterator
 from dataclasses import dataclass, field
 
 from PyQt5.QtCore import Qt, pyqtSignal, QStringListModel, QRect
@@ -31,7 +31,7 @@ class SDCompleter:
 class LoraCompleter(SDCompleter):
     def __init__(self, cfg: Config):
         super().__init__(
-            re.compile(re_lora_start + '$'),
+            re.compile(re_lora_start),
             cfg,
             ":0.5>"
         )
@@ -44,7 +44,7 @@ class LoraCompleter(SDCompleter):
 class EmbeddingCompleter(SDCompleter):
     def __init__(self, cfg: Config):
         super().__init__(
-            re.compile(re_embedding + '$'),
+            re.compile(re_embedding),
             cfg,
             " ",
 
@@ -85,6 +85,7 @@ class QPromptCompleter(QCompleter):
         self.setModel(self.model)
         self.setCompletionMode(QCompleter.PopupCompletion)
         self.setCaseSensitivity(Qt.CaseInsensitive)
+        self.setFilterMode(Qt.MatchContains)
         self.highlighted.connect(self.setHighlighted)
         self.setMaxVisibleItems(5)
         self.cfg = cfg
@@ -112,31 +113,45 @@ class QPromptCompleter(QCompleter):
         return self.lastSelected + extra
 
     def try_auto_complete(self, tc: QTextCursor, cr: QRect):
-        # Get the line
-        tc.select(QTextCursor.LineUnderCursor)
-        line = tc.selectedText()
+        try:
+            # Order of operation here is important
+            # We need to get the position before we update selection
+            cursor_pos: int = tc.position()
+            tc.select(QTextCursor.LineUnderCursor)
+            line = tc.selectedText()
+            line_start: int = tc.selectionStart()
+            # Make cursor_pos relative to the line start
+            cursor_pos: int = cursor_pos - line_start
 
-        match: Optional[re.Match] = None
-        # match last occurrence of rule on the line
-        for r in self.rules:
-            match = re.search(r.matcher, line)
+            # Try to match each rule multiple times per line
+            # only accept the match if the span
+            # end is in the same pos as the cursor_pos
+            match: Optional[re.Match] = None
+            for r in self.rules:
+                matches: Iterator[re.Match] = re.finditer(r.matcher, line)
+                for m in matches:
+                    if m is not None and m.end() == cursor_pos:
+                        self.rule = r
+                        match = m
+                        break
+
             if match is not None:
-                self.rule = r
-                break
-
-        if match is not None:
-            # Select first match group so we can replace it
-            tc.movePosition(QTextCursor.StartOfLine, mode=QTextCursor.MoveAnchor)
-            tc.movePosition(QTextCursor.Right, mode=QTextCursor.MoveAnchor, n=match.span(1)[0])
-            tc.movePosition(QTextCursor.Right, mode=QTextCursor.KeepAnchor, n=match.span(1)[1])
-            # update the completer for with the list for this rule
-            self.rule.update()
-            self.set_string_list(self.rule.autocomplete_list)
-            self.setCompletionPrefix(tc.selectedText())
-            popup = self.popup()
-            popup.setCurrentIndex(self.completionModel().index(0, 0))
-            cr.setWidth(popup.sizeHintForColumn(0)
-                        + popup.verticalScrollBar().sizeHint().width())
-            self.complete(cr)
-        else:
-            self.hide_popup()
+                # Select first match group so we can replace it
+                tc.movePosition(QTextCursor.StartOfLine, mode=QTextCursor.MoveAnchor)
+                tc.movePosition(QTextCursor.Right, mode=QTextCursor.MoveAnchor, n=match.span(1)[0])
+                tc.movePosition(QTextCursor.Right, mode=QTextCursor.KeepAnchor, n=match.span(1)[1]-match.span(1)[0])
+                # update the completer for with the list for this rule
+                self.rule.update()
+                self.set_string_list(self.rule.autocomplete_list)
+                self.setCompletionPrefix(tc.selectedText())
+                popup = self.popup()
+                popup.setCurrentIndex(self.completionModel().index(0, 0))
+                cr.setWidth(popup.sizeHintForColumn(0)
+                            + popup.verticalScrollBar().sizeHint().width())
+                self.complete(cr)
+            else:
+                self.hide_popup()
+        except Exception as e:
+            # if we throw here we can crash QT
+            print(e)
+            return

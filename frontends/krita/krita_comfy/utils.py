@@ -26,7 +26,7 @@ from .defaults import (
 
 
 re_lora = r"<lora:([=\[\] \\/\w\d.-]+):(\-?[\d.]+)>"
-re_lora_start = r"<lora:([=\[\] \\/\w\d.-]+)"
+re_lora_start = r"<lora:([=\[\]\\/\w\d.-]+)"
 re_embedding = r"embedding\:([^ \n$]+)"
 
 

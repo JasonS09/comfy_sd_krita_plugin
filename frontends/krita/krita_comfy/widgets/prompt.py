@@ -26,11 +26,11 @@ class QPromptEdit(QPlainTextEdit):
         self.completer.insertText.connect(self.insertCompletion)
 
     def insertCompletion(self, text):
-        tc = self.textCursor()
-        extra = (len(text) - len(self.completer.completionPrefix()))
-        tc.movePosition(QTextCursor.Left)
-        tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(text[-extra:])
+        tc: QTextCursor = self.textCursor()
+        prefix_len: int = len(self.completer.completionPrefix())
+        tc.movePosition(QTextCursor.Left, mode=QTextCursor.KeepAnchor, n=prefix_len)
+        tc.removeSelectedText()
+        tc.insertText(text)
         self.setTextCursor(tc)
         self.completer.hide_popup()
 
@@ -53,7 +53,6 @@ class QPromptEdit(QPlainTextEdit):
         QPlainTextEdit.keyPressEvent(self, e)
         tc: QTextCursor = self.textCursor()
         cr: QRect = self.cursorRect()
-        tc.select(QTextCursor.LineUnderCursor)
         self.completer.setWidget(self)
         self.completer.try_auto_complete(tc, cr)
 
