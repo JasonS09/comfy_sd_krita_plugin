@@ -619,7 +619,7 @@ class Client(QObject):
             ]
             params[ksampler_id]["inputs"]["steps"] = ceil(self.cfg(f"{mode}_steps", int)/2)
         
-    def apply_controlnet(self, params, controlnet_src_imgs):
+    def apply_controlnet(self, params, controlnet_src_imgs, width, height):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         if self.check_params(params, [ksampler_id]) and controlnet_src_imgs:
             prev = "" #chain positive conditioning
@@ -628,14 +628,14 @@ class Client(QObject):
             for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
                 if self.cfg(f"controlnet{i}_enable", bool):
                     prev, prev_neg = self.controlnet_unit_params(params, img_to_b64(
-                        controlnet_src_imgs[str(i)]), i, prev, prev_neg)
+                        controlnet_src_imgs[str(i)]), i, width, height, prev, prev_neg)
             
             if prev != "":
                 params[ksampler_id]["inputs"]["positive"] = [prev, 0]
             if prev_neg != "":
                 params[ksampler_id]["inputs"]["negative"] = [prev_neg, 1]
 
-    def controlnet_unit_params(self, params, image: str, unit: int, prev = "", prev_neg = ""):
+    def controlnet_unit_params(self, params, image: str, unit: int, width, height, prev = "", prev_neg = ""):
         #Image loading
         preprocessor = self.cfg(f"controlnet{unit}_preprocessor", str)
         imageloader_prefix = DEFAULT_NODE_IDS["ControlNetImageLoader"]
@@ -708,6 +708,9 @@ class Client(QObject):
         inputs = self.cfg(f"controlnet{unit}_inputs")
         if preprocessor not in ["None", "Revision"]:
             inputs.update({"image": [imageloader_node_id, 0]})
+
+            if self.cfg(f"controlnet{unit}_pixel_perfect", bool):
+                inputs.update({"resolution": min(width, height)})
 
             if "Inpaint" in preprocessor:
                 inputs.update({"mask": [mask_node, mask_node_output_num]})
@@ -1081,7 +1084,7 @@ class Client(QObject):
             self.loadLoRAs(params, mode)
         
         if positive_prompt_found and negative_prompt_found:
-            self.apply_controlnet(params, controlnet_src_imgs)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
 
         if upscale_model_loader_found:
             params[upscale_model_loader_id]["inputs"]["model_name"] = self.cfg("upscaler_name", str)
@@ -1196,7 +1199,7 @@ class Client(QObject):
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
             self.loadLoRAs(params, "txt2img")
-            self.apply_controlnet(params, controlnet_src_imgs)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
         else:
             workflow = self.cfg("txt2img_workflow", str)
             params = self.run_injected_custom_workflow(
@@ -1319,7 +1322,7 @@ class Client(QObject):
                     self.upscale_latent(params, width, height, seed, "img2img")
             
             self.loadLoRAs(params, "img2img")
-            self.apply_controlnet(params, controlnet_src_imgs)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
         else:
             params = self.run_injected_custom_workflow(
                 self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
@@ -1526,7 +1529,7 @@ class Client(QObject):
                     0
                 ]
             self.loadLoRAs(params, "inpaint")
-            self.apply_controlnet(params, controlnet_src_imgs)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
                                      "inpaint", src_img, mask_img, controlnet_src_imgs, original_width=width,
@@ -1640,7 +1643,18 @@ class Client(QObject):
 
         self.get_images(params, cb)
 
-    def post_controlnet_preview(self, cb, src_img):
+    def post_controlnet_preview(self, cb, src_img, selected):
+        def get_width_and_height():
+            resized_width, resized_height = selected.width(), selected.height()
+            disable_base_and_max_size = self.cfg(
+                "disable_sddebz_highres", bool)
+
+            if not disable_base_and_max_size:
+                return calculate_resized_image_dimensions(
+                    self.cfg("sd_base_size", int), self.cfg(
+                        "sd_max_size", int), resized_width, resized_height)
+            return resized_width, resized_height
+            
         unit = self.cfg("controlnet_unit", int)
         preprocessor = self.cfg(f"controlnet{unit}_preprocessor", str)
         try:
@@ -1658,10 +1672,14 @@ class Client(QObject):
                 "image": img_to_b64(src_img)
             }
         }
-        inputs = self.cfg(f"controlnet{unit}_inputs")
+        inputs = self.cfg(f"controlnet{unit}_inputs", dict)
         inputs.update({"image": [
             DEFAULT_NODE_IDS['ControlNetImageLoader'], 0
         ]})
+        if self.cfg(f"controlnet{unit}_pixel_perfect", bool):
+                width, height = get_width_and_height()
+                inputs.update({"resolution": min(width, height)})
+                
         preprocessor_class = self.cfg("controlnet_preprocessors_info", dict)[preprocessor]["class"]
         preprocessor_node = {
             "class_type": preprocessor_class,

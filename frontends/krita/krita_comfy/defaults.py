@@ -214,6 +214,7 @@ class Defaults:
     controlnet0_guidance_end: float = 1
     controlnet0_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet0_input_image: str = ""
+    controlnet0_pixel_perfect: bool = True
     #controlnet0_control_mode: str = "Balanced"
 
     controlnet1_enable: bool = False
@@ -224,6 +225,7 @@ class Defaults:
     controlnet1_guidance_end: float = 1
     controlnet1_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet1_input_image: str = ""
+    controlnet1_pixel_perfect: bool = True
     #controlnet1_control_mode: str = "Balanced"
 
     controlnet2_enable: bool = False
@@ -234,6 +236,7 @@ class Defaults:
     controlnet2_guidance_end: float = 1
     controlnet2_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet2_input_image: str = ""
+    controlnet2_pixel_perfect: bool = True
     #controlnet2_control_mode: str = "Balanced"
 
     controlnet3_enable: bool = False
@@ -244,6 +247,7 @@ class Defaults:
     controlnet3_guidance_end: float = 1
     controlnet3_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet3_input_image: str = ""
+    controlnet3_pixel_perfect: bool = True
     #controlnet3_control_mode: str = "Balanced"
 
     controlnet4_enable: bool = False
@@ -254,6 +258,7 @@ class Defaults:
     controlnet4_guidance_end: float = 1
     controlnet4_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet4_input_image: str = ""
+    controlnet4_pixel_perfect: bool = True
     #controlnet4_control_mode: str = "Balanced"
 
     controlnet5_enable: bool = False
@@ -264,6 +269,7 @@ class Defaults:
     controlnet5_guidance_end: float = 1
     controlnet5_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet5_input_image: str = ""
+    controlnet5_pixel_perfect: bool = True
     #controlnet5_control_mode: str = "Balanced"
 
     controlnet6_enable: bool = False
@@ -274,6 +280,7 @@ class Defaults:
     controlnet6_guidance_end: float = 1
     controlnet6_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet6_input_image: str = ""
+    controlnet6_pixel_perfect: bool = True
     #controlnet6_control_mode: str = "Balanced"
 
     controlnet7_enable: bool = False
@@ -284,6 +291,7 @@ class Defaults:
     controlnet7_guidance_end: float = 1
     controlnet7_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet7_input_image: str = ""
+    controlnet7_pixel_perfect: bool = True
     #controlnet7_control_mode: str = "Balanced"
 
     controlnet8_enable: bool = False
@@ -294,6 +302,7 @@ class Defaults:
     controlnet8_guidance_end: float = 1
     controlnet8_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet8_input_image: str = ""
+    controlnet8_pixel_perfect: bool = True
     #controlnet8_control_mode: str = "Balanced"
 
     controlnet9_enable: bool = False
@@ -304,6 +313,7 @@ class Defaults:
     controlnet9_guidance_end: float = 1
     controlnet9_inputs: Dict[str, object] = field(default_factory=lambda: {})
     controlnet9_input_image: str = ""
+    controlnet9_pixel_perfect: bool = True
     #controlnet9_control_mode: str = "Balanced"
 
 DEFAULTS = Defaults()

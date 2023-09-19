@@ -94,9 +94,13 @@ class ControlNetUnitSettings(QWidget):
             script.cfg, "controlnet_model_list", f"controlnet{self.unit}_model", label="Model:"
         )
 
+
         #Refresh button
         self.refresh_button = QPushButton("Refresh")
 
+        self.pixel_perfect = QCheckBox(
+            script.cfg, f"controlnet{self.unit}_pixel_perfect", label="Pixel perfect:"
+        )
         self.weight_layout = QSpinBoxLayout(
             script.cfg, f"controlnet{self.unit}_weight", label="Weight:", min=0, max=10, step=0.05
         )
@@ -134,6 +138,7 @@ class ControlNetUnitSettings(QWidget):
         layout.addLayout(self.preprocessor_layout)
         layout.addLayout(self.model_layout)
         layout.addWidget(self.refresh_button)
+        layout.addWidget(self.pixel_perfect)
         layout.addLayout(self.preprocessor_settings_layout)
         layout.addLayout(self.weight_layout)
         layout.addLayout(guidance_layout)
@@ -155,6 +160,7 @@ class ControlNetUnitSettings(QWidget):
         label = key.capitalize().replace("_", " ")+":"
         inputs = dict(script.cfg(f"controlnet{self.unit}_inputs", dict))
         widget = QSpinBoxLayout(script.cfg, "", label=label, **kwargs)
+        widget.setObjectName(key)
         if value is not None:
             widget.qspin.setValue(value)
         widget.qspin.valueChanged.connect(
@@ -191,6 +197,18 @@ class ControlNetUnitSettings(QWidget):
         self.guidance_start_layout.qlabel.show()
         self.guidance_end_layout.qspin.show()
         self.guidance_end_layout.qlabel.show()   
+
+    def show_resolution(self):
+        res_layout = self.preprocessor_settings_layout.findChild(QSpinBoxLayout, "resolution")
+        if res_layout is not None:
+            res_layout.qspin.show()
+            res_layout.qlabel.show()
+
+    def hide_resolution(self):
+        res_layout = self.preprocessor_settings_layout.findChild(QSpinBoxLayout, "resolution")
+        if res_layout is not None:
+            res_layout.qspin.hide()
+            res_layout.qlabel.hide()
 
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
@@ -248,6 +266,7 @@ class ControlNetUnitSettings(QWidget):
         self.preprocessor_layout.cfg_init()
         self.model_layout.cfg_init()
         self.weight_layout.cfg_init()
+        self.pixel_perfect.cfg_init()
         self.guidance_start_layout.cfg_init()
         self.guidance_end_layout.cfg_init()
 
@@ -256,11 +275,17 @@ class ControlNetUnitSettings(QWidget):
         else:
             self.annotator_preview_button.setEnabled(True)
 
+        if self.pixel_perfect.isChecked():
+            self.hide_resolution()
+        else:
+            self.show_resolution()
+
     def cfg_connect(self):
         self.enable.cfg_connect()
         self.preprocessor_layout.cfg_connect()
         self.model_layout.cfg_connect()
         self.weight_layout.cfg_connect()
+        self.pixel_perfect.cfg_connect()
         self.guidance_start_layout.cfg_connect()
         self.guidance_end_layout.cfg_connect()
         self.image_loader.import_button.released.connect(self.image_loaded)
@@ -274,6 +299,7 @@ class ControlNetUnitSettings(QWidget):
         )
         self.preprocessor_layout.qcombo.currentTextChanged.connect(self.add_preprocessor_options)
         self.refresh_button.released.connect(lambda: script.action_update_controlnet_config())
+        self.pixel_perfect.toggled.connect(lambda t: self.hide_resolution() if t else self.show_resolution())
         self.annotator_preview_button.released.connect(
             lambda: script.action_preview_controlnet_annotator()
         )

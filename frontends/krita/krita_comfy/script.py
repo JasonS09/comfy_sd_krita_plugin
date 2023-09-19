@@ -31,6 +31,7 @@ from .defaults import (
 )
 from .utils import (
     b64_to_img,
+    calculate_resized_image_dimensions,
     find_optimal_selection_region,
     img_to_ba,
     save_img,
@@ -440,7 +441,8 @@ class Script(QObject):
                 pixmap = QPixmap.fromImage(output.img)
                 self.controlnet_preview_annotator_received.emit(pixmap)
 
-        self.client.post_controlnet_preview(cb, image)
+        sel_image = self.get_selection_image()
+        self.client.post_controlnet_preview(cb, image, sel_image)
 
     def apply_simple_upscale(self):
         insert = self.img_inserter(self.x, self.y, self.width, self.height)
@@ -499,7 +501,7 @@ class Script(QObject):
 
         cb, glayer = self.basic_callback_crafter(mode)
         
-        if is_inpaint and mask_image is not None:
+        if is_inpaint:
             mask_image, transparency_mask = self.get_mask_image()
             self.node.setVisible(False)
             self.doc.refreshProjection()
