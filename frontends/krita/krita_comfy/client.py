@@ -1532,8 +1532,8 @@ class Client(QObject):
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
-                                     "inpaint", src_img, mask_img, controlnet_src_imgs, original_width=width,
-                                     original_height=height)
+                                     "inpaint", src_img, mask_img, controlnet_src_imgs, 
+                                     resized_width, resized_height, width, height)
 
         if cb is None:
             return self.get_workflow(params, "inpaint")
