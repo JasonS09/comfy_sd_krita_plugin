@@ -822,10 +822,15 @@ class Client(QObject):
             for o in obj.values():
                 if "preprocessors" in o["category"].lower():
                     name = o["display_name"].replace("Preprocessor", "") if o["display_name"] != "" else o["name"].replace("Preprocessor", "")
+                    inputs = obj[o["name"]]["input"]["required"]
+                    try:
+                        inputs.update(obj[o["name"]]["input"]["optional"])
+                    except KeyError:
+                        pass
                     preprocessors_info.update({
                         name: {
                             "class": o["name"], 
-                            "inputs": obj[o["name"]]["input"]["required"]
+                            "inputs": inputs
                         }
                     })
                 # Add revision 
