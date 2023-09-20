@@ -168,6 +168,8 @@ class ControlNetUnitSettings(QWidget):
         )
         self.set_input(inputs, key, widget.qspin.value())
         self.preprocessor_settings_layout.addLayout(widget)
+        if key == "resolution":
+            self.pixel_perfect_handle_resolution(self.pixel_perfect.isChecked())
     
     def add_combobox(self, key, value = None, options = None, **kwargs):
         label = key.capitalize().replace("_", " ")+":"
@@ -209,6 +211,12 @@ class ControlNetUnitSettings(QWidget):
         if res_layout is not None:
             res_layout.qspin.hide()
             res_layout.qlabel.hide()
+
+    def pixel_perfect_handle_resolution(self, checked):
+        if checked:
+            self.hide_resolution()
+        else:
+            self.show_resolution()
 
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
@@ -275,10 +283,7 @@ class ControlNetUnitSettings(QWidget):
         else:
             self.annotator_preview_button.setEnabled(True)
 
-        if self.pixel_perfect.isChecked():
-            self.hide_resolution()
-        else:
-            self.show_resolution()
+        self.pixel_perfect_handle_resolution(self.pixel_perfect.isChecked())
 
     def cfg_connect(self):
         self.enable.cfg_connect()
@@ -299,7 +304,7 @@ class ControlNetUnitSettings(QWidget):
         )
         self.preprocessor_layout.qcombo.currentTextChanged.connect(self.add_preprocessor_options)
         self.refresh_button.released.connect(lambda: script.action_update_controlnet_config())
-        self.pixel_perfect.toggled.connect(lambda t: self.hide_resolution() if t else self.show_resolution())
+        self.pixel_perfect.toggled.connect(lambda t: self.pixel_perfect_handle_resolution(t))
         self.annotator_preview_button.released.connect(
             lambda: script.action_preview_controlnet_annotator()
         )
