@@ -51,7 +51,7 @@
             ]
         },
         "class_type": "IPAdapterCLIPVisionEncode"
-    }
+    },
     "4": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {
