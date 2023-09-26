@@ -984,6 +984,7 @@ class Client(QObject):
         image_scale_id = DEFAULT_NODE_IDS["ImageScale"]
         latent_upscale_id = DEFAULT_NODE_IDS["LatentUpscale"]
         model_loader_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        clip_set_last_layer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         vae_loader_id = DEFAULT_NODE_IDS["VAELoader"]
         upscale_model_loader_id = DEFAULT_NODE_IDS["UpscaleModelLoader"]
         ksampler_found =  ksampler_id in params
@@ -992,6 +993,7 @@ class Client(QObject):
         image_scale_found = image_scale_id in params
         latent_upscale_found = latent_upscale_id in params
         model_loader_found =  model_loader_id in params
+        clip_set_last_layer_found = clip_set_last_layer_id in params
         vae_loader_found = vae_loader_id in params
         upscale_model_loader_found = upscale_model_loader_id in params
         prompt = self.cfg(f"{mode}_prompt", str)
@@ -1044,6 +1046,9 @@ class Client(QObject):
 
         if model_loader_found:
             params[model_loader_id]["inputs"]["ckpt_name"] = self.cfg("sd_model", str)
+
+        if clip_set_last_layer_found:
+            params[clip_set_last_layer_id]["inputs"]["stop_at_clip_layer"] = -self.cfg("clip_skip", int)
 
         if vae_loader_found:
             params[vae_loader_id]["inputs"]["vae_name"] = self.cfg("sd_vae", str)
