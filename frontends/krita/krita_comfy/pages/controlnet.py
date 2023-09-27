@@ -169,7 +169,7 @@ class ControlNetUnitSettings(QWidget):
         self.set_input(inputs, key, widget.qspin.value())
         self.preprocessor_settings_layout.addLayout(widget)
         if key == "resolution":
-            self.toggle_resolution(self.pixel_perfect.isChecked())
+            self.toggle_resolution(not self.pixel_perfect.isChecked())
     
     def add_combobox(self, key, value = None, options = None, **kwargs):
         label = key.capitalize().replace("_", " ")+":"
@@ -201,7 +201,7 @@ class ControlNetUnitSettings(QWidget):
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
         script.cfg.set(f"controlnet{self.unit}_inputs", dict())
-        self.toggle_weight_and_guidance(script.cfg(f"controlnet{self.unit}_preprocessor", str) == "Revision")
+        self.toggle_weight_and_guidance(not script.cfg(f"controlnet{self.unit}_preprocessor", str) == "Revision")
         for preprocessor, info in script.cfg("controlnet_preprocessors_info", dict).items():
             preprocessor_inputs = script.cfg(f"controlnet{self.unit}_inputs", dict)
             if preprocessor == script.cfg(f"controlnet{self.unit}_preprocessor", str):
@@ -260,7 +260,7 @@ class ControlNetUnitSettings(QWidget):
         else:
             self.annotator_preview_button.setEnabled(True)
 
-        self.toggle_resolution(self.pixel_perfect.isChecked())
+        self.toggle_resolution(not self.pixel_perfect.isChecked())
 
     def cfg_connect(self):
         self.enable.cfg_connect()
@@ -281,7 +281,7 @@ class ControlNetUnitSettings(QWidget):
         )
         self.preprocessor_layout.qcombo.currentTextChanged.connect(self.add_preprocessor_options)
         self.refresh_button.released.connect(lambda: script.action_update_controlnet_config())
-        self.pixel_perfect.toggled.connect(self.toggle_resolution)
+        self.pixel_perfect.toggled.connect(lambda t: self.toggle_resolution(not t))
         self.annotator_preview_button.released.connect(
             lambda: script.action_preview_controlnet_annotator()
         )
