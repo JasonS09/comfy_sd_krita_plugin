@@ -169,7 +169,7 @@ class ControlNetUnitSettings(QWidget):
         self.set_input(inputs, key, widget.qspin.value())
         self.preprocessor_settings_layout.addLayout(widget)
         if key == "resolution":
-            self.pixel_perfect_handle_resolution(self.pixel_perfect.isChecked())
+            self.toggle_resolution(self.pixel_perfect.isChecked())
     
     def add_combobox(self, key, value = None, options = None, **kwargs):
         label = key.capitalize().replace("_", " ")+":"
@@ -184,47 +184,24 @@ class ControlNetUnitSettings(QWidget):
         self.set_input(inputs, key, widget.qcombo.currentText())
         self.preprocessor_settings_layout.addLayout(widget)
 
-    def hide_weight_and_guidance(self):
-        self.weight_layout.qspin.hide()
-        self.weight_layout.qlabel.hide()
-        self.guidance_start_layout.qspin.hide()
-        self.guidance_start_layout.qlabel.hide()
-        self.guidance_end_layout.qspin.hide()
-        self.guidance_end_layout.qlabel.hide()
+    def toggle_weight_and_guidance(self, visible):
+        self.weight_layout.qspin.setVisible(visible)
+        self.weight_layout.qlabel.setVisible(visible)
+        self.guidance_start_layout.qspin.setVisible(visible)
+        self.guidance_start_layout.qlabel.setVisible(visible)
+        self.guidance_end_layout.qspin.setVisible(visible)
+        self.guidance_end_layout.qlabel.setVisible(visible)
 
-    def show_weight_and_guidance(self):
-        self.weight_layout.qspin.show()
-        self.weight_layout.qlabel.show()
-        self.guidance_start_layout.qspin.show()
-        self.guidance_start_layout.qlabel.show()
-        self.guidance_end_layout.qspin.show()
-        self.guidance_end_layout.qlabel.show()   
-
-    def show_resolution(self):
+    def toggle_resolution(self, visible):
         res_layout = self.preprocessor_settings_layout.findChild(QSpinBoxLayout, "resolution")
         if res_layout is not None:
-            res_layout.qspin.show()
-            res_layout.qlabel.show()
-
-    def hide_resolution(self):
-        res_layout = self.preprocessor_settings_layout.findChild(QSpinBoxLayout, "resolution")
-        if res_layout is not None:
-            res_layout.qspin.hide()
-            res_layout.qlabel.hide()
-
-    def pixel_perfect_handle_resolution(self, checked):
-        if checked:
-            self.hide_resolution()
-        else:
-            self.show_resolution()
+            res_layout.qspin.setVisible(visible)
+            res_layout.qlabel.setVisible(visible)
 
     def add_preprocessor_options(self):
         clear_layout(self.preprocessor_settings_layout)
         script.cfg.set(f"controlnet{self.unit}_inputs", dict())
-        if script.cfg(f"controlnet{self.unit}_preprocessor", str) == "Revision":
-            self.hide_weight_and_guidance()
-        else:
-            self.show_weight_and_guidance()
+        self.toggle_weight_and_guidance(script.cfg(f"controlnet{self.unit}_preprocessor", str) == "Revision")
         for preprocessor, info in script.cfg("controlnet_preprocessors_info", dict).items():
             preprocessor_inputs = script.cfg(f"controlnet{self.unit}_inputs", dict)
             if preprocessor == script.cfg(f"controlnet{self.unit}_preprocessor", str):
@@ -283,7 +260,7 @@ class ControlNetUnitSettings(QWidget):
         else:
             self.annotator_preview_button.setEnabled(True)
 
-        self.pixel_perfect_handle_resolution(self.pixel_perfect.isChecked())
+        self.toggle_resolution(self.pixel_perfect.isChecked())
 
     def cfg_connect(self):
         self.enable.cfg_connect()
@@ -304,7 +281,7 @@ class ControlNetUnitSettings(QWidget):
         )
         self.preprocessor_layout.qcombo.currentTextChanged.connect(self.add_preprocessor_options)
         self.refresh_button.released.connect(lambda: script.action_update_controlnet_config())
-        self.pixel_perfect.toggled.connect(lambda t: self.pixel_perfect_handle_resolution(t))
+        self.pixel_perfect.toggled.connect(self.toggle_resolution)
         self.annotator_preview_button.released.connect(
             lambda: script.action_preview_controlnet_annotator()
         )
