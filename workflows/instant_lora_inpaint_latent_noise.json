@@ -1,0 +1,168 @@
+{
+    "4": {
+        "inputs": {
+            "ckpt_name": "Midnight Mixer Melt.safetensors"
+        },
+        "class_type": "CheckpointLoaderSimple"
+    },
+    "7": {
+        "inputs": {
+            "text": "type your negative prompt here",
+            "clip": [
+                "CLIPSetLastLayer",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode"
+    },
+    "6": {
+        "inputs": {
+            "text": "",
+            "clip": [
+                "CLIPSetLastLayer",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode"
+    },
+    "8": {
+        "inputs": {
+            "tile_size": 512,
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        },
+        "class_type": "VAEDecode"
+    },
+    "48": {
+        "inputs": {
+            "weight": 0.85,
+            "model_name": "ip-adapter-plus_sd15.bin",
+            "dtype": "fp32",
+            "model": [
+                "<<LastLoadedLora|4>>",
+                0
+            ],
+            "image": [
+                "148",
+                0
+            ],
+            "clip_vision": [
+                "57",
+                0
+            ]
+        },
+        "class_type": "IPAdapter"
+    },
+    "50": {
+        "inputs": {
+            "strength": 1.0,
+            "noise_augmentation": 0.05,
+            "conditioning": [
+                "<<LastLoadedControlnet|6>>",
+                0
+            ],
+            "clip_vision_output": [
+                "48",
+                1
+            ]
+        },
+        "class_type": "unCLIPConditioning"
+    },
+    "57": {
+        "inputs": {
+            "clip_name": "ip-adapter_sd15-image-encoder.bin"
+        },
+        "class_type": "CLIPVisionLoader"
+    },
+    "3": {
+        "inputs": {
+            "seed": 432057595846560,
+            "steps": 24,
+            "cfg": 6.5,
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
+            "denoise": 1.0,
+            "model": [
+                "48",
+                0
+            ],
+            "positive": [
+                "50",
+                0
+            ],
+            "negative": [
+                "7",
+                0
+            ],
+            "latent_image": [
+                "VAEEncodeForInpaint",
+                0
+            ]
+        },
+        "class_type": "KSampler"
+    },
+    "122": {
+        "inputs": {
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "PreviewImage"
+    },
+    "148": {
+        "inputs": {
+            "directory": "C:/images/directory",
+            "image_load_cap": 10,
+            "start_index": 0
+        },
+        "class_type": "LoadImagesFromDir //Inspire"
+    },
+    "LoadBase64Image": {
+        "inputs": {
+            "image": "<<SelectedImage>>"
+        },
+        "class_type": "LoadBase64Image"
+    },
+    "LoadBase64ImageMask": {
+        "inputs": {
+            "image": "<<CurrentLayerAsMask>>",
+            "channel": "alpha"
+        },
+        "class_type": "LoadBase64ImageMask"
+    },
+    "VAEEncodeForInpaint": {
+        "inputs": {
+            "grow_mask_by": 6,
+            "pixels": [
+                "LoadBase64Image",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ],
+            "mask": [
+                "LoadBase64ImageMask",
+                0
+            ]
+        },
+        "class_type": "VAEEncodeForInpaint"
+    },
+    "CLIPSetLastLayer": {
+        "inputs": {
+            "stop_at_clip_layer": -1,
+            "clip": [
+                "4",
+                1
+            ]
+        },
+        "class_type": "CLIPSetLastLayer"
+    }
+}
