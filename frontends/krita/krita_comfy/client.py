@@ -310,11 +310,12 @@ class Client(QObject):
                 for node in DEFAULT_NODE_IDS.items():
                     if params[key]["class_type"] in node[0] and node[1] == key:
                         break
-                raise ValueError(f"{ERR_MISSING_NODE}: {key}")
+                else:
+                    raise ValueError(f"{ERR_MISSING_NODE}: {key}")
             except ValueError as v:
                 if fail:
+                    self.status.emit(str(v))
                     raise v
-                self.status.emit(v)
                 return False
         return True
     
