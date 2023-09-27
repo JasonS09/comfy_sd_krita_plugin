@@ -303,18 +303,23 @@ class Client(QObject):
             method="GET"
         )
 
-    def check_params(self, params, keys):
+    def check_params(self, params, keys, fail = False):
         "Check if the defined nodes exist in params"
         for key in keys:
             try:
-                assert key in params
-            except:
-                self.status.emit(ERR_MISSING_NODE)
+                for node in DEFAULT_NODE_IDS.items():
+                    if params[key]["class_type"] in node[0] and node[1] == key:
+                        break
+                raise ValueError(f"{ERR_MISSING_NODE}: {key}")
+            except ValueError as v:
+                if fail:
+                    raise v
+                self.status.emit(v)
                 return False
         return True
     
-    def load_vae(self, params):
-        if self.check_params(params, [DEFAULT_NODE_IDS["VAEDecode"]]):
+    def load_vae(self, params, fail_on_missing_req_node = False):
+        if self.check_params(params, [DEFAULT_NODE_IDS["VAEDecode"]], fail_on_missing_req_node):
             vaeloader_node = {
                 "class_type": "VAELoader",
                 "inputs": {
@@ -379,11 +384,11 @@ class Client(QObject):
 
         if self.cfg("sd_vae", str) != "None"  \
                 and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
-            self.load_vae(params)
+            self.load_vae(params, True)
 
         return params
 
-    def loadLoRAs(self, params, mode, connect_last_lora_outputs = True):
+    def loadLoRAs(self, params, mode, connect_last_lora_outputs = True, fail_on_missing_req_node = False):
         clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         checkpointloadersimple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -393,7 +398,7 @@ class Client(QObject):
 
         if not connect_last_lora_outputs or self.check_params(params, [
             ksampler_id, cliptextencode_pos_id, cliptextencode_neg_id
-            ]):
+            ], fail_on_missing_req_node):
             # Initialize a counter to keep track of the number of nodes added
             lora_count = 0
             pos_prompt = self.cfg(f"{mode}_prompt", str)
@@ -412,7 +417,7 @@ class Client(QObject):
                 strength_number = float(match[1])
 
                 # Create a node dictionary with the class type, inputs, and outputs
-                clip = clipsetlastlayer_id if clipsetlastlayer_id in params else checkpointloadersimple_id
+                clip = clipsetlastlayer_id if self.check_params(params, [clipsetlastlayer_id]) else checkpointloadersimple_id
                 prev_lora_id = f"{DEFAULT_NODE_IDS['LoraLoader']}+{lora_count}"
                 node = {
                     "class_type": "LoraLoader",
@@ -428,7 +433,7 @@ class Client(QObject):
                         ],
                         "clip": [
                             clip if lora_count == 0 else prev_lora_id,
-                            1 if lora_count > 0 or clipsetlastlayer_id not in params else 0
+                            1 if lora_count > 0 or clip == checkpointloadersimple_id else 0
                         ]
                     }
                 }
@@ -449,7 +454,7 @@ class Client(QObject):
                     params[ksampler_id]["inputs"]["model"] = [last_lora_id, 0]
 
                     #Connect KSampler for upscale (second pass) to last lora node if found.
-                    if ksampler_upscale_id in params:
+                    if self.check_params(params, [ksampler_upscale_id]):
                         params[ksampler_upscale_id]["inputs"]["model"] = [last_lora_id, 0]
 
                     #Connect positive prompt to lora clip.
@@ -519,6 +524,7 @@ class Client(QObject):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
 
         if self.check_params(params, [vaedecode_id, ksampler_id]):
+            vae_id_found = self.check_params(params, vae_id)
             vaedecode_upscale_node = {
                 "class_type": "VAEDecode",
                 "inputs": {
@@ -527,8 +533,8 @@ class Client(QObject):
                         0
                     ],
                     "vae": [
-                        vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0 if vae_id in params else 2
+                        vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0 if vae_id_found else 2
                     ]
                 }
             }
@@ -572,8 +578,8 @@ class Client(QObject):
                         0
                     ],
                     "vae": [
-                        vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0 if vae_id in params else 2
+                        vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0 if vae_id_found else 2
                     ]
                 }
             }
@@ -619,9 +625,9 @@ class Client(QObject):
             ]
             params[ksampler_id]["inputs"]["steps"] = ceil(self.cfg(f"{mode}_steps", int)/2)
         
-    def apply_controlnet(self, params, controlnet_src_imgs, width, height):
+    def apply_controlnet(self, params, controlnet_src_imgs, width, height, fail_on_missing_req_node = False):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
-        if self.check_params(params, [ksampler_id]) and controlnet_src_imgs:
+        if self.check_params(params, [ksampler_id], fail_on_missing_req_node) and controlnet_src_imgs:
             prev = "" #chain positive conditioning
             prev_neg = "" #chain negative conditioning
 
@@ -663,8 +669,9 @@ class Client(QObject):
 
         if "Inpaint" in preprocessor:
             mask_node_id = DEFAULT_NODE_IDS["LoadBase64ImageMask"]
-            mask_node = mask_node_id if mask_node_id in params else imageloader_node_id
-            mask_node_output_num = 0 if mask_node_id in params else 1
+            mask_node_id_found = self.check_params(params, [mask_node_id])
+            mask_node = mask_node_id if mask_node_id_found else imageloader_node_id
+            mask_node_output_num = 0 if mask_node_id_found else 1
 
         #model loading
         controlnetloader_prefix = DEFAULT_NODE_IDS["ControlNetLoader"]
@@ -791,7 +798,7 @@ class Client(QObject):
         params.update({id: apply_controlnet_node})
         return id, id #pos conditioning id, neg conditioning id
     
-    def set_img2img_batch(self, params, vae_encode_id):
+    def set_img2img_batch(self, params, vae_encode_id, fail_on_missing_req_node = False):
         def insert_image_batch_node(batch_size):
             nonlocal counter
             if batch_size == 1:
@@ -812,7 +819,7 @@ class Client(QObject):
             counter += 1
             return image_batch_node_id
 
-        if self.check_params(params, [vae_encode_id]):
+        if self.check_params(params, [vae_encode_id], fail_on_missing_req_node):
             batch_size = self.cfg("sd_batch_size", int)
             if batch_size > 1:
                 counter = 0
@@ -987,15 +994,15 @@ class Client(QObject):
         clip_set_last_layer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         vae_loader_id = DEFAULT_NODE_IDS["VAELoader"]
         upscale_model_loader_id = DEFAULT_NODE_IDS["UpscaleModelLoader"]
-        ksampler_found =  ksampler_id in params
-        positive_prompt_found = positive_prompt_id in params
-        negative_prompt_found = negative_prompt_id in params
-        image_scale_found = image_scale_id in params
-        latent_upscale_found = latent_upscale_id in params
-        model_loader_found =  model_loader_id in params
-        clip_set_last_layer_found = clip_set_last_layer_id in params
-        vae_loader_found = vae_loader_id in params
-        upscale_model_loader_found = upscale_model_loader_id in params
+        ksampler_found =  self.check_params(ksampler_id, params)
+        positive_prompt_found = self.check_params(positive_prompt_id, params)
+        negative_prompt_found = self.check_params(negative_prompt_id, params)
+        image_scale_found = self.check_params(image_scale_id, params)
+        latent_upscale_found = self.check_params(latent_upscale_id, params)
+        model_loader_found =  self.check_params(model_loader_id, params)
+        clip_set_last_layer_found = self.check_params(clip_set_last_layer_id, params)
+        vae_loader_found = self.check_params(vae_loader_id, params)
+        upscale_model_loader_found = self.check_params(upscale_model_loader_id, params)
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
@@ -1056,14 +1063,14 @@ class Client(QObject):
             self.load_vae(params)
             vae_loaded = True
 
-        if mode == "txt2img" and DEFAULT_NODE_IDS["EmptyLatentImage"] in params:
+        if mode == "txt2img" and self.check_params(params, DEFAULT_NODE_IDS["EmptyLatentImage"]):
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
             params[empty_latent_image_id]["inputs"]["height"] = resized_height
             params[empty_latent_image_id]["inputs"]["width"] = resized_width
             params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
 
         if mode == "img2img" or mode == "inpaint":
-            VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if DEFAULT_NODE_IDS["VAEEncode"] in params else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
+            VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if self.check_params(params, DEFAULT_NODE_IDS["VAEEncode"]) else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
             self.set_img2img_batch(params, VAEEncode_id)
 
         if ksampler_found:
@@ -1094,9 +1101,9 @@ class Client(QObject):
         if upscale_model_loader_found:
             params[upscale_model_loader_id]["inputs"]["model_name"] = self.cfg("upscaler_name", str)
             if vae_loaded:
-                if DEFAULT_NODE_IDS["VAEDecode_upscale"] in params:
+                if self.check_params(params, DEFAULT_NODE_IDS["VAEDecode_upscale"]):
                     params[DEFAULT_NODE_IDS["VAEDecode_upscale"]]["inputs"]["vae"] = [vae_loader_id, 0]
-                if DEFAULT_NODE_IDS["VAEEncode_upscale"] in params:
+                if self.check_params(params, DEFAULT_NODE_IDS["VAEEncode_upscale"]):
                     params[DEFAULT_NODE_IDS["VAEEncode_upscale"]]["inputs"]["vae"] = [vae_loader_id, 0]
 
         if image_scale_found:
@@ -1203,8 +1210,8 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "txt2img")
 
-            self.loadLoRAs(params, "txt2img")
-            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
+            self.loadLoRAs(params, "txt2img", fail_on_missing_req_node = True)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             workflow = self.cfg("txt2img_workflow", str)
             params = self.run_injected_custom_workflow(
@@ -1245,6 +1252,7 @@ class Client(QObject):
                 }
             }
             vae_id = DEFAULT_NODE_IDS["VAELoader"]
+            vae_id_found = self.check_params(vae_id, params)
             vaeencode_node = {
                 "class_type": "VAEEncode",
                 "inputs": {
@@ -1253,8 +1261,8 @@ class Client(QObject):
                         0
                     ],
                     "vae": [
-                        vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0 if vae_id in params else 2
+                        vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                        0 if vae_id_found else 2
                     ]
                 }
             }
@@ -1314,7 +1322,7 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"])
+            self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"], True)
 
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\
@@ -1326,8 +1334,8 @@ class Client(QObject):
                 else:
                     self.upscale_latent(params, width, height, seed, "img2img")
             
-            self.loadLoRAs(params, "img2img")
-            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
+            self.loadLoRAs(params, "img2img", fail_on_missing_req_node = True)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params = self.run_injected_custom_workflow(
                 self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
@@ -1378,6 +1386,7 @@ class Client(QObject):
                 }
             }
             vae_id = DEFAULT_NODE_IDS["VAELoader"]
+            vae_id_found = self.check_params(vae_id, params)
             if preserve:
                 vaeencode_node = {
                     "class_type": "VAEEncode",
@@ -1387,8 +1396,8 @@ class Client(QObject):
                             0
                         ],
                         "vae": [
-                            vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                            0 if vae_id in params else 2
+                            vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0 if vae_id_found else 2
                         ]
                     }
                 }
@@ -1422,8 +1431,8 @@ class Client(QObject):
                             0
                         ],
                         "vae": [
-                            vae_id if vae_id in params else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                            0 if vae_id in params else 2
+                            vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0 if vae_id_found else 2
                         ]
                     }
                 }
@@ -1484,7 +1493,7 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            self.set_img2img_batch(params, VAEEncode_id)
+            self.set_img2img_batch(params, VAEEncode_id, True)
 
             upscaler_name = self.cfg("upscaler_name", str)
             if not disable_base_and_max_size and not upscaler_name == "None" and\
@@ -1533,8 +1542,8 @@ class Client(QObject):
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
                     0
                 ]
-            self.loadLoRAs(params, "inpaint")
-            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
+            self.loadLoRAs(params, "inpaint", fail_on_missing_req_node = True)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
                                      "inpaint", src_img, mask_img, controlnet_src_imgs, 
