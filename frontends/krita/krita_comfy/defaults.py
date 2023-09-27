@@ -103,6 +103,7 @@ PRUNED_DATA = "<<PrunedImageData>>"
 SELECTED_IMAGE = "<<SelectedImage>>"
 CURRENT_LAYER_AS_MASK = "<<CurrentLayerAsMask>>"
 LAST_LOADED_LORA = r"<<LastLoadedLora\|(.+?)>>"
+LAST_LOADED_CONTROLNET = r"<<LastLoadedControlnet\|(.+?)>>"
 PROMPT = "<<Prompt>>"
 NEGATIVE_PROMPT = "<<NegativePrompt>>"
 

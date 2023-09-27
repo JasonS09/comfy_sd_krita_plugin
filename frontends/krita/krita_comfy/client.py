@@ -21,6 +21,7 @@ from .defaults import (
     ERR_MISSING_NODE,
     ERR_NO_CONNECTION,
     LAST_LOADED_LORA,
+    LAST_LOADED_CONTROLNET,
     LONG_TIMEOUT,
     NEGATIVE_PROMPT,
     PROMPT,
@@ -641,7 +642,8 @@ class Client(QObject):
                     0
             ]
         
-    def apply_controlnet(self, params, controlnet_src_imgs, width, height, fail_on_missing_req_node = False):
+    def apply_controlnet(self, params, controlnet_src_imgs, width, height, 
+                         fail_on_missing_req_node = False, connect_last_controlnet = True):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         if self.check_params(params, [ksampler_id], fail_on_missing_req_node) and controlnet_src_imgs:
             prev = "" #chain positive conditioning
@@ -651,11 +653,12 @@ class Client(QObject):
                 if self.cfg(f"controlnet{i}_enable", bool):
                     prev, prev_neg = self.controlnet_unit_params(params, img_to_b64(
                         controlnet_src_imgs[str(i)]), i, width, height, prev, prev_neg)
-            
-            if prev != "":
-                params[ksampler_id]["inputs"]["positive"] = [prev, 0]
+            if connect_last_controlnet:
+                if prev != "":
+                    params[ksampler_id]["inputs"]["positive"] = [prev, 0]
             if prev_neg != "":
                 params[ksampler_id]["inputs"]["negative"] = [prev_neg, 1]
+            return prev, prev_neg
 
     def controlnet_unit_params(self, params, image: str, unit: int, width, height, prev = "", prev_neg = ""):
         #Image loading
@@ -1022,6 +1025,7 @@ class Client(QObject):
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
+        controlnet_loaded = False
         vae_loaded = False
 
         def remove_lora_from_prompt():
@@ -1030,18 +1034,21 @@ class Client(QObject):
 
         def load_placeholder_data():
             # Define a function that takes a match object and returns a replacement string
-            def replace_lora_pattern(match, last_lora_id = None):
+            def replace_placeholder_pattern(match, last_node_id = None):
                 # Get the group inside the parentheses
                 group = match.group(1)
                 # If last_lora_id is not None, return its value
-                if last_lora_id is not None:
-                    return last_lora_id
+                if last_node_id is not None:
+                    return last_node_id
                 # Otherwise, return the group value
                 else:
                     return group
                 
-            nonlocal loras_loaded, params
+            nonlocal loras_loaded, controlnet_loaded, params
             str_params = ""
+            last_lora_id = ""
+            last_controlnet_conditioning = ""
+
             if PROMPT in workflow:
                 str_params = json.dumps(params)
                 str_params = str_params.replace(PROMPT, remove_lora_from_prompt())
@@ -1051,19 +1058,34 @@ class Client(QObject):
                     str_params = json.dumps(params)
                 str_params = str_params.replace(NEGATIVE_PROMPT, negative_prompt)
             
-            # Bring back the dict to load the loras
+            # Bring back the dict to load the loras and controlnets
             if str_params != "":
                 params = json.loads(str_params)
                 str_params = ""
             
-            if model_loader_found and positive_prompt_found:
+            if model_loader_found:
                 if re.search(LAST_LOADED_LORA, workflow):
                     last_lora_id = self.loadLoRAs(params, mode, False)       
-                    str_params = json.dumps(params)
-                    str_params = re.sub(
-                        LAST_LOADED_LORA, lambda match: replace_lora_pattern(match, last_lora_id), str_params
-                    )
                     loras_loaded = True
+            
+            if positive_prompt_found and negative_prompt_found:
+                    if re.search(LAST_LOADED_CONTROLNET, workflow):
+                        last_controlnet_conditioning, neg = self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height,
+                                                         connect_last_controlnet = False)    
+                        controlnet_loaded = True
+
+            if loras_loaded:
+                str_params = json.dumps(params)
+                str_params = re.sub(
+                    LAST_LOADED_LORA, lambda match: replace_placeholder_pattern(match, last_lora_id), str_params
+                )
+
+            if controlnet_loaded:
+                if str_params == "":
+                    str_params = json.dumps(params)
+                str_params = re.sub(
+                    LAST_LOADED_CONTROLNET, lambda match: replace_placeholder_pattern(match, last_controlnet_conditioning), str_params
+                )
 
             return json.loads(str_params) if str_params != "" else params
 
@@ -1111,7 +1133,7 @@ class Client(QObject):
         if not loras_loaded and model_loader_found:
             self.loadLoRAs(params, mode)
         
-        if positive_prompt_found and negative_prompt_found:
+        if not controlnet_loaded and positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
 
         if upscale_model_loader_found:
