@@ -308,14 +308,14 @@ class Client(QObject):
         for key in keys:
             try:
                 for node in DEFAULT_NODE_IDS.items():
-                    if params[key]["class_type"] in node[0] and node[1] == key:
+                    if params[key]["class_type"].lower() in node[0].lower() and node[1] == key:
                         break
                 else:
                     raise ValueError(f"{ERR_MISSING_NODE}: {key}")
-            except ValueError as v:
+            except (ValueError, KeyError) as e:
                 if fail:
-                    self.status.emit(str(v))
-                    raise v
+                    self.status.emit(str(e))
+                    raise e
                 return False
         return True
     
@@ -526,22 +526,10 @@ class Client(QObject):
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         saveimage_id = DEFAULT_NODE_IDS["SaveImage"]
+        second_pass = self.cfg("upscale_second_pass", bool)
 
         if self.check_params(params, [vaedecode_id, ksampler_id]):
             vae_id_found = self.check_params(params, [vae_id])
-            vaedecode_upscale_node = {
-                "class_type": "VAEDecode",
-                "inputs": {
-                    "samples": [
-                        DEFAULT_NODE_IDS["KSampler"],
-                        0
-                    ],
-                    "vae": [
-                        vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0 if vae_id_found else 2
-                    ]
-                }
-            }
             upscalemodelloader_node = {
                 "class_type": "UpscaleModelLoader",
                 "inputs": {
@@ -556,7 +544,7 @@ class Client(QObject):
                         0
                     ],
                     "image": [
-                        DEFAULT_NODE_IDS["VAEDecode_upscale"],
+                        DEFAULT_NODE_IDS["VAEDecode_upscale"] if second_pass else vaedecode_id,
                         0
                     ]
                 }
@@ -575,7 +563,20 @@ class Client(QObject):
                 }
             }
             denoise = self.cfg(f"{mode}_denoising_strength", float)
-            if self.cfg("upscale_second_pass", bool):
+            if second_pass:
+                vaedecode_upscale_node = {
+                    "class_type": "VAEDecode",
+                    "inputs": {
+                        "samples": [
+                            DEFAULT_NODE_IDS["KSampler"],
+                            0
+                        ],
+                        "vae": [
+                            vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0 if vae_id_found else 2
+                        ]
+                    }
+                }
                 vaeencode_upscale_node = {
                     "class_type": "VAEEncode",
                     "inputs": {
@@ -632,7 +633,7 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ImageScale"]: scaleimage_node,
             })
 
-            if self.cfg("upscale_second_pass", bool):
+            if second_pass:
                 return
             
             params[saveimage_id]["inputs"]["images"] = [
