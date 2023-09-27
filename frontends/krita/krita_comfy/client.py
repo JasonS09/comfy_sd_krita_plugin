@@ -527,7 +527,7 @@ class Client(QObject):
         saveimage_id = DEFAULT_NODE_IDS["SaveImage"]
 
         if self.check_params(params, [vaedecode_id, ksampler_id]):
-            vae_id_found = self.check_params(params, vae_id)
+            vae_id_found = self.check_params(params, [vae_id])
             vaedecode_upscale_node = {
                 "class_type": "VAEDecode",
                 "inputs": {
@@ -1008,15 +1008,15 @@ class Client(QObject):
         clip_set_last_layer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         vae_loader_id = DEFAULT_NODE_IDS["VAELoader"]
         upscale_model_loader_id = DEFAULT_NODE_IDS["UpscaleModelLoader"]
-        ksampler_found =  self.check_params(ksampler_id, params)
-        positive_prompt_found = self.check_params(positive_prompt_id, params)
-        negative_prompt_found = self.check_params(negative_prompt_id, params)
-        image_scale_found = self.check_params(image_scale_id, params)
-        latent_upscale_found = self.check_params(latent_upscale_id, params)
-        model_loader_found =  self.check_params(model_loader_id, params)
-        clip_set_last_layer_found = self.check_params(clip_set_last_layer_id, params)
-        vae_loader_found = self.check_params(vae_loader_id, params)
-        upscale_model_loader_found = self.check_params(upscale_model_loader_id, params)
+        ksampler_found =  self.check_params(params, [ksampler_id])
+        positive_prompt_found = self.check_params(params, [positive_prompt_id])
+        negative_prompt_found = self.check_params(params, [negative_prompt_id])
+        image_scale_found = self.check_params(params, [image_scale_id])
+        latent_upscale_found = self.check_params(params, [latent_upscale_id])
+        model_loader_found =  self.check_params(params, [model_loader_id])
+        clip_set_last_layer_found = self.check_params(params, [clip_set_last_layer_id])
+        vae_loader_found = self.check_params(params, [vae_loader_id])
+        upscale_model_loader_found = self.check_params(params, [upscale_model_loader_id])
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
@@ -1077,14 +1077,14 @@ class Client(QObject):
             self.load_vae(params)
             vae_loaded = True
 
-        if mode == "txt2img" and self.check_params(params, DEFAULT_NODE_IDS["EmptyLatentImage"]):
+        if mode == "txt2img" and self.check_params(params, [DEFAULT_NODE_IDS["EmptyLatentImage"]]):
             empty_latent_image_id =  DEFAULT_NODE_IDS["EmptyLatentImage"]
             params[empty_latent_image_id]["inputs"]["height"] = resized_height
             params[empty_latent_image_id]["inputs"]["width"] = resized_width
             params[empty_latent_image_id]["inputs"]["batch_size"] = self.cfg("sd_batch_size", int)
 
         if mode == "img2img" or mode == "inpaint":
-            VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if self.check_params(params, DEFAULT_NODE_IDS["VAEEncode"]) else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
+            VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if self.check_params(params, [DEFAULT_NODE_IDS["VAEEncode"]]) else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
             self.set_img2img_batch(params, VAEEncode_id)
 
         if ksampler_found:
@@ -1115,9 +1115,9 @@ class Client(QObject):
         if upscale_model_loader_found:
             params[upscale_model_loader_id]["inputs"]["model_name"] = self.cfg("upscaler_name", str)
             if vae_loaded:
-                if self.check_params(params, DEFAULT_NODE_IDS["VAEDecode_upscale"]):
+                if self.check_params(params, [DEFAULT_NODE_IDS["VAEDecode_upscale"]]):
                     params[DEFAULT_NODE_IDS["VAEDecode_upscale"]]["inputs"]["vae"] = [vae_loader_id, 0]
-                if self.check_params(params, DEFAULT_NODE_IDS["VAEEncode_upscale"]):
+                if self.check_params(params, [DEFAULT_NODE_IDS["VAEEncode_upscale"]]):
                     params[DEFAULT_NODE_IDS["VAEEncode_upscale"]]["inputs"]["vae"] = [vae_loader_id, 0]
 
         if image_scale_found:
@@ -1213,17 +1213,6 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            upscaler_name = self.cfg("upscaler_name", str)
-            if not disable_base_and_max_size and not upscaler_name == "None" and\
-                (min(width, height) > self.cfg("sd_base_size", int)
-                    or max(width, height) > self.cfg("sd_max_size", int)):
-                upscaler_name = self.cfg("upscaler_name", str)
-                if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
-                    self.upscale_with_model(
-                        params, width, height, seed, "txt2img")
-                else:
-                    self.upscale_latent(params, width, height, seed, "txt2img")
-
             self.loadLoRAs(params, "txt2img", fail_on_missing_req_node = True)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
@@ -1231,6 +1220,18 @@ class Client(QObject):
             params = self.run_injected_custom_workflow(
                 workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height, width, height
             )
+        
+        upscaler_name = self.cfg("upscaler_name", str)
+        if not disable_base_and_max_size and not upscaler_name == "None" and\
+            (min(width, height) > self.cfg("sd_base_size", int)
+                or max(width, height) > self.cfg("sd_max_size", int)):
+            upscaler_name = self.cfg("upscaler_name", str)
+            if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
+                  self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
+                self.upscale_with_model(
+                    params, width, height, seed, "txt2img")
+            elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
+                self.upscale_latent(params, width, height, seed, "txt2img")
 
         if cb is None:
             return self.get_workflow(params, "txt2img")
@@ -1266,7 +1267,7 @@ class Client(QObject):
                 }
             }
             vae_id = DEFAULT_NODE_IDS["VAELoader"]
-            vae_id_found = self.check_params(vae_id, params)
+            vae_id_found = self.check_params(params, [vae_id])
             vaeencode_node = {
                 "class_type": "VAEEncode",
                 "inputs": {
@@ -1337,17 +1338,6 @@ class Client(QObject):
             })
 
             self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"], True)
-
-            upscaler_name = self.cfg("upscaler_name", str)
-            if not disable_base_and_max_size and not upscaler_name == "None" and\
-                (min(width, height) > self.cfg("sd_base_size", int)
-                    or max(width, height) > self.cfg("sd_max_size", int)):
-                if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
-                    self.upscale_with_model(
-                        params, width, height, seed, "img2img")
-                else:
-                    self.upscale_latent(params, width, height, seed, "img2img")
-            
             self.loadLoRAs(params, "img2img", fail_on_missing_req_node = True)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
@@ -1355,6 +1345,17 @@ class Client(QObject):
                 self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
                 controlnet_src_imgs, resized_width, resized_height, width, height
             )
+
+        upscaler_name = self.cfg("upscaler_name", str)
+        if not disable_base_and_max_size and not upscaler_name == "None" and\
+            (min(width, height) > self.cfg("sd_base_size", int)
+                or max(width, height) > self.cfg("sd_max_size", int)):
+            if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
+             self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
+                self.upscale_with_model(
+                    params, width, height, seed, "img2img")
+            elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
+                self.upscale_latent(params, width, height, seed, "img2img")
 
         if cb is None:
             return self.get_workflow(params, "img2img")
@@ -1400,7 +1401,7 @@ class Client(QObject):
                 }
             }
             vae_id = DEFAULT_NODE_IDS["VAELoader"]
-            vae_id_found = self.check_params(vae_id, params)
+            vae_id_found = self.check_params(params, [vae_id])
             if preserve:
                 vaeencode_node = {
                     "class_type": "VAEEncode",
@@ -1508,15 +1509,24 @@ class Client(QObject):
             })
 
             self.set_img2img_batch(params, VAEEncode_id, True)
-
-            upscaler_name = self.cfg("upscaler_name", str)
-            if not disable_base_and_max_size and not upscaler_name == "None" and\
-                (min(width, height) > self.cfg("sd_base_size", int)
-                    or max(width, height) > self.cfg("sd_max_size", int)):  # Upscale image automatically.
-                if upscaler_name in self.cfg("upscaler_model_list", "QStringList"):
-                    # Set common upscaling nodes for model upscaling (eg. Ultrasharp).
-                    self.upscale_with_model(
-                        params, width, height, seed, "inpaint")
+            self.loadLoRAs(params, "inpaint", fail_on_missing_req_node = True)
+            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
+        else:
+            params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
+                                     "inpaint", src_img, mask_img, controlnet_src_imgs, 
+                                     resized_width, resized_height, width, height)
+        
+        upscaler_name = self.cfg("upscaler_name", str)
+        if not disable_base_and_max_size and not upscaler_name == "None" and\
+            (min(width, height) > self.cfg("sd_base_size", int)
+                or max(width, height) > self.cfg("sd_max_size", int)):  # Upscale image automatically.
+            second_pass = self.cfg("upscale_second_pass", bool)
+            if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
+             self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
+                # Set common upscaling nodes for model upscaling (eg. Ultrasharp).
+                self.upscale_with_model(
+                    params, width, height, seed, "inpaint")    
+                if second_pass:
                     # Set a new latent noise mask for the second pass.
                     setlatentnoisemask_node = {
                         "class_type": "SetLatentNoiseMask",
@@ -1531,9 +1541,10 @@ class Client(QObject):
                             ]
                         }
                     }
-                else:
-                    self.upscale_latent(params, width, height, seed, "inpaint")
-                    # Set a new latent noise mask for the second pass.
+            elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
+                self.upscale_latent(params, width, height, seed, "inpaint")
+                # Set a new latent noise mask for the second pass.
+                if second_pass:
                     setlatentnoisemask_node = {
                         "class_type": "SetLatentNoiseMask",
                         "inputs": {
@@ -1547,6 +1558,7 @@ class Client(QObject):
                             ]
                         }
                     }
+            if second_pass:
                 # Register the second mask.
                 params.update({
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"]: setlatentnoisemask_node
@@ -1556,12 +1568,6 @@ class Client(QObject):
                     DEFAULT_NODE_IDS["SetLatentNoiseMask_upscale"],
                     0
                 ]
-            self.loadLoRAs(params, "inpaint", fail_on_missing_req_node = True)
-            self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
-        else:
-            params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
-                                     "inpaint", src_img, mask_img, controlnet_src_imgs, 
-                                     resized_width, resized_height, width, height)
 
         if cb is None:
             return self.get_workflow(params, "inpaint")
