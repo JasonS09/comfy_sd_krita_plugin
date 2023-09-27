@@ -57,6 +57,14 @@ class SDCommonPage(QWidget):
             label="Upscaler:"
         )
 
+        self.upscale_second_pass = QCheckBox(
+            script.cfg, "upscale_second_pass", "Upscale second pass (highres fix)"
+        ) 
+
+        self.second_pass_steps = QSpinBoxLayout(
+            script.cfg, "second_pass_steps", label="Second pass steps:", min=1, max=9999, step=1
+        )
+
         self.sddebz = QCheckBox(
             script.cfg, "disable_sddebz_highres", "Disable base/max size"
         )
@@ -78,6 +86,8 @@ class SDCommonPage(QWidget):
         layout.addLayout(checkboxes_layout)
         layout.addLayout(size_layout)
         layout.addLayout(self.upscaler_layout)
+        layout.addWidget(self.upscale_second_pass)
+        layout.addLayout(self.second_pass_steps)
         layout.addWidget(self.interrupt_btn)
         layout.addStretch()
 
@@ -91,6 +101,8 @@ class SDCommonPage(QWidget):
         self.base_size_layout.cfg_init()
         self.max_size_layout.cfg_init()
         self.upscaler_layout.cfg_init()
+        self.upscale_second_pass.cfg_init()
+        self.second_pass_steps.cfg_init()
         self.sddebz.cfg_init()
 
         self.title.setVisible(not script.cfg("minimize_ui", bool))
@@ -103,6 +115,8 @@ class SDCommonPage(QWidget):
         self.base_size_layout.cfg_connect()
         self.max_size_layout.cfg_connect()
         self.upscaler_layout.cfg_connect()
+        self.upscale_second_pass.cfg_connect()
+        self.second_pass_steps.cfg_connect()
         self.sddebz.cfg_connect()
 
         # hide base/max size when disabled
@@ -113,6 +127,9 @@ class SDCommonPage(QWidget):
             self.max_size_layout.qlabel.setVisible(visible)
             self.upscaler_layout.qcombo.setVisible(visible)
             self.upscaler_layout.qlabel.setVisible(visible)
+            self.upscale_second_pass.setVisible(visible)
+            self.second_pass_steps.qspin.setVisible(visible)
+            self.second_pass_steps.qlabel.setVisible(visible)
 
         self.sddebz.toggled.connect(lambda b: toggle_sddebz_highres(not b))
         toggle_sddebz_highres(not script.cfg("disable_sddebz_highres", bool))

@@ -59,7 +59,7 @@ DEFAULT_NODE_IDS = {
     "ClipTextEncode_pos": "6",
     "ClipTextEncode_neg": "7",
     "VAEDecode": "8",
-    "SaveImage": "SaveImage",
+    "SaveImage": "9",
     "ClipSetLastLayer": "ClipSetLastLayer",
     "VAELoader": "VAELoader",
 
@@ -135,6 +135,8 @@ class Defaults:
     upscaler_methods_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     upscaler_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     upscaler_name: str = "None"
+    upscale_second_pass: bool = True
+    second_pass_steps: int = 10
     face_restorer_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     face_restorer_model: str = "None"
     codeformer_weight: float = 0.5

@@ -481,47 +481,50 @@ class Client(QObject):
                 }
             }
             denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
-            ksampler_upscale_node = {
-                "class_type": "KSampler",
-                "inputs": {
-                    "cfg": 8,
-                    "denoise": denoise if denoise < 1 else 0.30,
-                    "model": [
-                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0
-                    ],
-                    "latent_image": [
-                        DEFAULT_NODE_IDS["LatentUpscale"],
-                        0
-                    ],
-                    "negative": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                        0
-                    ],
-                    "positive": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                        0
-                    ],
-                    "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
-                    "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
-                    "seed": seed,
-                    "steps": ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
+            if self.cfg("upscale_second_pass", bool):
+                ksampler_upscale_node = {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "cfg": 8,
+                        "denoise": denoise if denoise < 1 else 0.30,
+                        "model": [
+                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0
+                        ],
+                        "latent_image": [
+                            DEFAULT_NODE_IDS["LatentUpscale"],
+                            0
+                        ],
+                        "negative": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                            0
+                        ],
+                        "positive": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                            0
+                        ],
+                        "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
+                        "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
+                        "seed": seed,
+                        "steps": self.cfg("second_pass_steps", int)
+                    }
                 }
-            }
+                params.update({
+                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+                })
             params.update({
-                DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node,
-                DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
+                DEFAULT_NODE_IDS["LatentUpscale"]: latentupscale_node
             })
             params[vaedecode_id]["inputs"]["samples"] = [
-                DEFAULT_NODE_IDS["KSampler_upscale"],
+                DEFAULT_NODE_IDS["KSampler_upscale"] if self.cfg("upscale_second_pass", bool) else DEFAULT_NODE_IDS["LatentUpscale"],
                 0
             ]
-            params[ksampler_id]["inputs"]["steps"] = ceil(self.cfg(f"{cfg_prefix}_steps", int)/2)
 
     def upscale_with_model(self, params, width, height, seed, mode):
         vae_id = DEFAULT_NODE_IDS["VAELoader"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        saveimage_id = DEFAULT_NODE_IDS["SaveImage"]
 
         if self.check_params(params, [vaedecode_id, ksampler_id]):
             vae_id_found = self.check_params(params, vae_id)
@@ -570,60 +573,71 @@ class Client(QObject):
                     ]
                 }
             }
-            vaeencode_upscale_node = {
-                "class_type": "VAEEncode",
-                "inputs": {
-                    "pixels": [
-                        DEFAULT_NODE_IDS["ImageScale"],
-                        0
-                    ],
-                    "vae": [
-                        vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0 if vae_id_found else 2
-                    ]
-                }
-            }
             denoise = self.cfg(f"{mode}_denoising_strength", float)
-            ksampler_upscale_node = {
-                "class_type": "KSampler",
-                "inputs": {
-                    "cfg": 8,
-                    "denoise": denoise if denoise < 1 else 0.30,
-                    "model": [
-                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0
-                    ],
-                    "latent_image": [
-                        DEFAULT_NODE_IDS["VAEEncode_upscale"],
-                        0
-                    ],
-                    "negative": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                        0
-                    ],
-                    "positive": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                        0
-                    ],
-                    "sampler_name": self.cfg(f"{mode}_sampler", str),
-                    "scheduler": self.cfg(f"{mode}_scheduler", str),
-                    "seed": seed,
-                    "steps": ceil(self.cfg(f"{mode}_steps", int)/2)
+            if self.cfg("upscale_second_pass", bool):
+                vaeencode_upscale_node = {
+                    "class_type": "VAEEncode",
+                    "inputs": {
+                        "pixels": [
+                            DEFAULT_NODE_IDS["ImageScale"],
+                            0
+                        ],
+                        "vae": [
+                            vae_id if vae_id_found else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0 if vae_id_found else 2
+                        ]
+                    }
                 }
-            }
+                ksampler_upscale_node = {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "cfg": 8,
+                        "denoise": denoise if denoise < 1 else 0.30,
+                        "model": [
+                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            0
+                        ],
+                        "latent_image": [
+                            DEFAULT_NODE_IDS["VAEEncode_upscale"],
+                            0
+                        ],
+                        "negative": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                            0
+                        ],
+                        "positive": [
+                            DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                            0
+                        ],
+                        "sampler_name": self.cfg(f"{mode}_sampler", str),
+                        "scheduler": self.cfg(f"{mode}_scheduler", str),
+                        "seed": seed,
+                        "steps": self.cfg("second_pass_steps", int)
+                    }
+                }
+                params.update({
+                    DEFAULT_NODE_IDS["VAEDecode_upscale"]: vaedecode_upscale_node,
+                    DEFAULT_NODE_IDS["VAEEncode_upscale"]: vaeencode_upscale_node,
+                    DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node,                
+                })
+                params[vaedecode_id]["inputs"]["samples"] = [
+                    DEFAULT_NODE_IDS["KSampler_upscale"],
+                    0
+                ]
+
             params.update({
-                DEFAULT_NODE_IDS["VAEDecode_upscale"]: vaedecode_upscale_node,
                 DEFAULT_NODE_IDS["UpscaleModelLoader"]: upscalemodelloader_node,
                 DEFAULT_NODE_IDS["ImageUpscaleWithModel"]: imageupscalewithmodel_node,
                 DEFAULT_NODE_IDS["ImageScale"]: scaleimage_node,
-                DEFAULT_NODE_IDS["VAEEncode_upscale"]: vaeencode_upscale_node,
-                DEFAULT_NODE_IDS["KSampler_upscale"]: ksampler_upscale_node
             })
-            params[vaedecode_id]["inputs"]["samples"] = [
-                DEFAULT_NODE_IDS["KSampler_upscale"],
-                0
+
+            if self.cfg("upscale_second_pass", bool):
+                return
+            
+            params[saveimage_id]["inputs"]["images"] = [
+                    DEFAULT_NODE_IDS["ImageScale"],
+                    0
             ]
-            params[ksampler_id]["inputs"]["steps"] = ceil(self.cfg(f"{mode}_steps", int)/2)
         
     def apply_controlnet(self, params, controlnet_src_imgs, width, height, fail_on_missing_req_node = False):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
