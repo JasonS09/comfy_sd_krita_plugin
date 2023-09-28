@@ -107,14 +107,15 @@
         },
         "class_type": "KSampler"
     },
-    "122": {
+    "9": {
         "inputs": {
+            "filename_prefix": "ComfyUI",
             "images": [
                 "8",
                 0
             ]
         },
-        "class_type": "PreviewImage"
+        "class_type": "SaveImage"
     },
     "148": {
         "inputs": {

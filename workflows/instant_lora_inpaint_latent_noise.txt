@@ -108,14 +108,15 @@ See See https://civitai.com/articles/2345/aloeveras-instant-lora-no-training-15-
         },
         "class_type": "KSampler"
     },
-    "122": {
+    "9": {
         "inputs": {
+            "filename_prefix": "ComfyUI",
             "images": [
                 "8",
                 0
             ]
         },
-        "class_type": "PreviewImage"
+        "class_type": "SaveImage"
     },
     "148": {
         "inputs": {
