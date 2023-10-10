@@ -645,10 +645,9 @@ class Client(QObject):
     def apply_controlnet(self, params, controlnet_src_imgs, width, height, 
                          fail_on_missing_req_node = False, connect_last_controlnet = True):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        prev = "" #chain positive conditioning
+        prev_neg = "" #chain negative conditioning
         if self.check_params(params, [ksampler_id], fail_on_missing_req_node) and controlnet_src_imgs:
-            prev = "" #chain positive conditioning
-            prev_neg = "" #chain negative conditioning
-
             for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
                 if self.cfg(f"controlnet{i}_enable", bool):
                     prev, prev_neg = self.controlnet_unit_params(params, img_to_b64(
@@ -658,7 +657,7 @@ class Client(QObject):
                     params[ksampler_id]["inputs"]["positive"] = [prev, 0]
             if prev_neg != "":
                 params[ksampler_id]["inputs"]["negative"] = [prev_neg, 1]
-            return prev, prev_neg
+        return prev, prev_neg
 
     def controlnet_unit_params(self, params, image: str, unit: int, width, height, prev = "", prev_neg = ""):
         #Image loading
@@ -1037,8 +1036,8 @@ class Client(QObject):
             def replace_placeholder_pattern(match, last_node_id = None):
                 # Get the group inside the parentheses
                 group = match.group(1)
-                # If last_lora_id is not None, return its value
-                if last_node_id is not None:
+                # If last_node_id has a value, return its value
+                if last_node_id is not None and last_node_id != "":
                     return last_node_id
                 # Otherwise, return the group value
                 else:
