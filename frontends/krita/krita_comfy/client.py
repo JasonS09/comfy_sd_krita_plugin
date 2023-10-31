@@ -390,11 +390,10 @@ class Client(QObject):
 
         return params
 
-    def loadLoRAs(self, params, mode, connect_last_lora_outputs = True, fail_on_missing_req_node = False):
+    def load_LoRAs(self, params, mode, connect_last_lora_outputs = True, fail_on_missing_req_node = False):
         clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         checkpointloadersimple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
-        ksampler_upscale_id = DEFAULT_NODE_IDS["KSampler_upscale"]
         cliptextencode_pos_id = DEFAULT_NODE_IDS["ClipTextEncode_pos"]
         cliptextencode_neg_id = DEFAULT_NODE_IDS["ClipTextEncode_neg"]
 
@@ -455,10 +454,6 @@ class Client(QObject):
                     #Connect KSampler to last lora node.
                     params[ksampler_id]["inputs"]["model"] = [last_lora_id, 0]
 
-                    #Connect KSampler for upscale (second pass) to last lora node if found.
-                    if self.check_params(params, [ksampler_upscale_id]):
-                        params[ksampler_upscale_id]["inputs"]["model"] = [last_lora_id, 0]
-
                     #Connect positive prompt to lora clip.
                     params[cliptextencode_pos_id]["inputs"]["clip"] = [last_lora_id, 1]
 
@@ -467,7 +462,7 @@ class Client(QObject):
 
                 return last_lora_id
 
-    def upscale_latent(self, params, width, height, seed, cfg_prefix):
+    def upscale_latent(self, params, width, height, seed, mode, last_loaded_lora = ""):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
 
@@ -482,7 +477,7 @@ class Client(QObject):
                     "samples": [ksampler_id, 0]
                 }
             }
-            denoise = self.cfg(f"{cfg_prefix}_denoising_strength", float)
+            denoise = self.cfg(f"{mode}_denoising_strength", float)
             if self.cfg("upscale_second_pass", bool):
                 ksampler_upscale_node = {
                     "class_type": "KSampler",
@@ -490,7 +485,7 @@ class Client(QObject):
                         "cfg": 8,
                         "denoise": denoise if denoise < 1 else 0.30,
                         "model": [
-                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            last_loaded_lora if last_loaded_lora != "" else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                             0
                         ],
                         "latent_image": [
@@ -505,8 +500,8 @@ class Client(QObject):
                             DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                             0
                         ],
-                        "sampler_name": self.cfg(f"{cfg_prefix}_sampler", str),
-                        "scheduler": self.cfg(f"{cfg_prefix}_scheduler", str),
+                        "sampler_name": self.cfg(f"{mode}_sampler", str),
+                        "scheduler": self.cfg(f"{mode}_scheduler", str),
                         "seed": seed,
                         "steps": self.cfg("second_pass_steps", int)
                     }
@@ -522,7 +517,7 @@ class Client(QObject):
                 0
             ]
 
-    def upscale_with_model(self, params, width, height, seed, mode):
+    def upscale_with_model(self, params, width, height, seed, mode, last_loaded_lora = ""):
         vae_id = DEFAULT_NODE_IDS["VAELoader"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -597,7 +592,7 @@ class Client(QObject):
                         "cfg": 8,
                         "denoise": denoise if denoise < 1 else 0.30,
                         "model": [
-                            DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            last_loaded_lora if last_loaded_lora != "" else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                             0
                         ],
                         "latent_image": [
@@ -1024,6 +1019,7 @@ class Client(QObject):
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
+        last_loaded_lora = ""
         controlnet_loaded = False
         vae_loaded = False
 
@@ -1043,9 +1039,8 @@ class Client(QObject):
                 else:
                     return group
                 
-            nonlocal loras_loaded, controlnet_loaded, params
+            nonlocal loras_loaded, last_loaded_lora, controlnet_loaded, params
             str_params = ""
-            last_lora_id = ""
             last_controlnet_conditioning = ""
 
             if PROMPT in workflow:
@@ -1064,7 +1059,7 @@ class Client(QObject):
             
             if model_loader_found:
                 if re.search(LAST_LOADED_LORA, workflow):
-                    last_lora_id = self.loadLoRAs(params, mode, False)       
+                    last_loaded_lora = self.load_LoRAs(params, mode, False)       
                     loras_loaded = True
             
             if positive_prompt_found and negative_prompt_found:
@@ -1076,7 +1071,7 @@ class Client(QObject):
             if loras_loaded:
                 str_params = json.dumps(params)
                 str_params = re.sub(
-                    LAST_LOADED_LORA, lambda match: replace_placeholder_pattern(match, last_lora_id), str_params
+                    LAST_LOADED_LORA, lambda match: replace_placeholder_pattern(match, last_loaded_lora), str_params
                 )
 
             if controlnet_loaded:
@@ -1130,7 +1125,7 @@ class Client(QObject):
             params[negative_prompt_id]["inputs"]["text"] = negative_prompt
         
         if not loras_loaded and model_loader_found:
-            self.loadLoRAs(params, mode)
+            last_loaded_lora = self.load_LoRAs(params, mode)
         
         if not controlnet_loaded and positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
@@ -1151,10 +1146,11 @@ class Client(QObject):
             params[latent_upscale_id]["inputs"]["height"] = original_height
             params[latent_upscale_id]["inputs"]["width"] = original_width
 
-        return params
+        return params, last_loaded_lora
 
     def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
+        last_loaded_lora = ""
         seed = (
             # Qt casts int as 32-bit int
             int(self.cfg("txt2img_seed", str))
@@ -1236,11 +1232,11 @@ class Client(QObject):
                 DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            self.loadLoRAs(params, "txt2img", fail_on_missing_req_node = True)
+            last_loaded_lora = self.load_LoRAs(params, "txt2img", fail_on_missing_req_node = True)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             workflow = self.cfg("txt2img_workflow", str)
-            params = self.run_injected_custom_workflow(
+            params, last_loaded_lora = self.run_injected_custom_workflow(
                 workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height, width, height
             )
         
@@ -1252,9 +1248,9 @@ class Client(QObject):
             if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
                   self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
                 self.upscale_with_model(
-                    params, width, height, seed, "txt2img")
+                    params, width, height, seed, "txt2img", last_loaded_lora)
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
-                self.upscale_latent(params, width, height, seed, "txt2img")
+                self.upscale_latent(params, width, height, seed, "txt2img", last_loaded_lora)
 
         if cb is None:
             return self.get_workflow(params, "txt2img")
@@ -1263,6 +1259,7 @@ class Client(QObject):
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
+        last_loaded_lora = ""
         seed = (
             # Qt casts int as 32-bit int
             int(self.cfg("img2img_seed", str))
@@ -1361,10 +1358,10 @@ class Client(QObject):
             })
 
             self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"], True)
-            self.loadLoRAs(params, "img2img", fail_on_missing_req_node = True)
+            last_loaded_lora = self.load_LoRAs(params, "img2img", fail_on_missing_req_node = True)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
-            params = self.run_injected_custom_workflow(
+            params, last_loaded_lora = self.run_injected_custom_workflow(
                 self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
                 controlnet_src_imgs, resized_width, resized_height, width, height
             )
@@ -1376,9 +1373,9 @@ class Client(QObject):
             if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
              self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
                 self.upscale_with_model(
-                    params, width, height, seed, "img2img")
+                    params, width, height, seed, "img2img", last_loaded_lora)
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
-                self.upscale_latent(params, width, height, seed, "img2img")
+                self.upscale_latent(params, width, height, seed, "img2img", last_loaded_lora)
 
         if cb is None:
             return self.get_workflow(params, "img2img")
@@ -1388,6 +1385,7 @@ class Client(QObject):
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
         assert mask_img, "Inpaint layer is needed for inpainting!"
+        last_loaded_lora = ""
         seed = (
             # Qt casts int as 32-bit int
             int(self.cfg("inpaint_seed", str))
@@ -1532,10 +1530,10 @@ class Client(QObject):
             })
 
             self.set_img2img_batch(params, VAEEncode_id, True)
-            self.loadLoRAs(params, "inpaint", fail_on_missing_req_node = True)
+            last_loaded_lora = self.load_LoRAs(params, "inpaint", fail_on_missing_req_node = True)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
-            params = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
+            params, last_loaded_lora = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
                                      "inpaint", src_img, mask_img, controlnet_src_imgs, 
                                      resized_width, resized_height, width, height)
         
@@ -1548,7 +1546,7 @@ class Client(QObject):
              self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
                 # Set common upscaling nodes for model upscaling (eg. Ultrasharp).
                 self.upscale_with_model(
-                    params, width, height, seed, "inpaint")    
+                    params, width, height, seed, "inpaint", last_loaded_lora)    
                 if second_pass:
                     # Set a new latent noise mask for the second pass.
                     setlatentnoisemask_node = {
@@ -1565,7 +1563,7 @@ class Client(QObject):
                         }
                     }
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
-                self.upscale_latent(params, width, height, seed, "inpaint")
+                self.upscale_latent(params, width, height, seed, "inpaint", last_loaded_lora)
                 # Set a new latent noise mask for the second pass.
                 if second_pass:
                     setlatentnoisemask_node = {
@@ -1693,7 +1691,7 @@ class Client(QObject):
             else:
                 upscale_latent()
         else:
-            params = self.run_injected_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img)
+            params, _ = self.run_injected_custom_workflow(self.cfg("upscale_workflow", str), 0, "upscale", src_img)
 
         if cb is None:
             return self.get_workflow(params, "upscale")
