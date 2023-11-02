@@ -38,7 +38,7 @@ This plugin offers a (somewhat) user friendly UI which can allow the user to mak
   `git clone https://github.com/Fannovel16/comfyui_controlnet_aux`
 
 #### The plugin
-- Clone this repo somewhere: `https://github.com/JasonS09/comfy_sd_krita_plugin`
+- Clone this repo somewhere: `git clone https://github.com/JasonS09/comfy_sd_krita_plugin --recursive`
 - Locate `pykrita` folder (Open Krita -> Settings -> Manage Resources -> Open Resource Folder). `pykrita` should be in that directory.
 - Open a new command prompt as Admin.
 - Make a symlink of `krita_comfy` and `krita_comfy.desktop` present in this repository (in the frontends/krita directory).
