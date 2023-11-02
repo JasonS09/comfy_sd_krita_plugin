@@ -215,7 +215,7 @@ class Script(QObject):
 
         return mask.rgbSwapped(), transparency_mask.rgbSwapped()
 
-    def img_inserter(self, x, y, width, height, inpaint=False, glayer=None, skip_check_pixel_data=False):
+    def img_inserter(self, x, y, width, height, mode, glayer=None, skip_check_pixel_data=False):
         """Return frozen image inserter to insert images as new layer."""
         # Selection may change before callback, so freeze selection region
         has_selection = self.selection is not None
@@ -243,7 +243,7 @@ class Script(QObject):
 
             # Image won't be scaled down ONLY if there is no selection; i.e. selecting whole image will scale down,
             # not selecting anything won't scale down, leading to the canvas being resized afterwards
-            if (has_selection or inpaint) and (image.width() != width or image.height() != height):
+            if (has_selection or mode != "upscale") and (image.width() != width or image.height() != height):
                 print(f"Rescaling image to selection: {width}x{height}")
                 image = image.scaled(
                     width, height, transformMode=Qt.SmoothTransformation
@@ -288,7 +288,7 @@ class Script(QObject):
         self.doc.rootNode().addChildNode(glayer, None)
 
         insert = self.img_inserter(
-            self.x, self.y, self.width, self.height, False, glayer, mode == "receive"
+            self.x, self.y, self.width, self.height, mode, glayer, mode == "receive"
         )
         if not is_inpaint:
             mask_trigger = self.transparency_mask_inserter()
