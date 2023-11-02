@@ -1,9 +1,11 @@
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from ..script import script
-from ..utils import b64_to_img
 from ..widgets import QLabel, StatusBar
+from ..defaults import (
+    STATE_WAIT
+)
 
 
 class PreviewPage(QWidget):
@@ -27,15 +29,22 @@ class PreviewPage(QWidget):
     def cfg_init(self):
         pass
 
-    def _update_image(self, progress):
+    def _update_image(self, image_mime, image_bytes):
         try:
-            enc = progress["current_image"]
-            image = b64_to_img(enc)
+            image = QImage.fromData(image_bytes, image_mime)
             self.preview.setPixmap(QPixmap.fromImage(image))
+        except:
+            pass
+
+    def _clear_image(self, status):
+        try:
+            if status == STATE_WAIT:
+                self.preview.clear()
         except:
             pass
 
     def cfg_connect(self):
         script.status_changed.connect(lambda s: self.status_bar.set_status(s))
-        script.progress_update.connect(lambda p: self._update_image(p))
+        script.status_changed.connect(self._clear_image)
+        script.preview_received.connect(self._update_image)
         self.interrupt_btn.released.connect(lambda: script.action_interrupt())

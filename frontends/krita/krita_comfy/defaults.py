@@ -10,6 +10,7 @@ STATE_INIT = "Errors will be shown here"
 STATE_URLERROR = "Network error"
 STATE_RESET_DEFAULT = "All settings reset"
 STATE_WAIT = "Please wait..."
+STATE_LOADING = "Loading generated image..."
 STATE_DONE = "Done!"
 STATE_INTERRUPT = "Interrupted!"
 

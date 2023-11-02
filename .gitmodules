@@ -1,0 +1,3 @@
+[submodule "frontends/krita/krita_comfy/websocket-client"]
+	path = frontends/krita/krita_comfy/websocket-client
+	url = https://github.com/websocket-client/websocket-client
