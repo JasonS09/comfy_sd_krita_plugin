@@ -3,7 +3,7 @@ import os
 import time
 import json
 
-from PyQt5.QtCore import QObject, QRect, QTimer, Qt, pyqtSignal
+from PyQt5.QtCore import QObject, QRect, QTimer, QByteArray, Qt, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap
 
 from krita import (
@@ -27,6 +27,7 @@ from .defaults import (
     STATE_INTERRUPT,
     STATE_RESET_DEFAULT,
     STATE_WAIT,
+    STATE_LOADING,
     STATE_DONE
 )
 from .utils import (
@@ -66,6 +67,7 @@ class Script(QObject):
     status_changed = pyqtSignal(str)
     config_updated = pyqtSignal()
     progress_update = pyqtSignal(object)
+    preview_received = pyqtSignal(str, QByteArray)
     controlnet_preview_annotator_received = pyqtSignal(QPixmap)
 
     def __init__(self):
@@ -78,6 +80,7 @@ class Script(QObject):
         self.client.status.connect(self.status_changed.emit)
         self.client.status.connect(self.stop_update_timer)
         self.client.config_updated.connect(self.config_updated.emit)
+        self.client.preview_received.connect(self.preview_received.emit)
         self.eta_timer = QTimer()
         self.eta_timer.setInterval(ETA_REFRESH_INTERVAL)
         self.eta_timer.timeout.connect(lambda: self.action_update_eta())
@@ -95,7 +98,7 @@ class Script(QObject):
             self.status_changed.emit(STATE_RESET_DEFAULT)
 
     def stop_update_timer(self, status):
-        if status == STATE_DONE or self.client.interrupted \
+        if status == STATE_LOADING or status == STATE_DONE or self.client.interrupted \
             or not self.client.is_connected:
             if self.client.interrupted or not self.client.is_connected:
                     try:
@@ -107,11 +110,6 @@ class Script(QObject):
     def update_status_bar_eta(self, progress):
         if self.client.interrupted:
             self.client.interrupted = False
-            return
-
-        running = len(progress["queue_running"])
-        if running > 0:
-            self.status_changed.emit(f"Executing prompt... ({len(progress['queue_pending'])} in queue)")
 
     def prompt_from_selection(self) -> PromptBase:
         """Return prompt parameters from the selected layer or None"""
@@ -229,7 +227,7 @@ class Script(QObject):
             else:
                 parent.addChildNode(layer, None)
             return layer
-            
+
         def insert(layer_name: str, b64image: Base64Image):
             nonlocal x, y, width, height, has_selection
             # QImage.Format_RGB32 (4) is default format after decoding image
@@ -280,7 +278,7 @@ class Script(QObject):
             return layer
 
         return insert
-    
+
     def basic_callback_crafter(self, mode):
         is_inpaint = mode == "inpaint"
 
@@ -326,22 +324,22 @@ class Script(QObject):
                 mask_trigger(layers)
 
             self.client.images_received.disconnect(cb)
-        
+
         return cb, glayer
-    
+
     def check_controlnet_enabled(self):
         for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
             if self.cfg(f"controlnet{i}_enable", bool):
                 return True
-            
+
     def get_controlnet_input_images(self, selected):
         input_images = dict()
 
-        for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):    
+        for i in range(len(self.cfg("controlnet_unit_list", "QStringList"))):
             if self.cfg(f"controlnet{i}_enable", bool):
                 input_image = b64_to_img(self.cfg(f"controlnet{i}_input_image", str)) if \
                     self.cfg(f"controlnet{i}_input_image", str) else selected
-                    
+
                 input_images.update({f"{i}": input_image})
 
         return input_images
@@ -372,12 +370,12 @@ class Script(QObject):
 
         if is_inpaint:
             self.client.post_inpaint(
-                cb, sel_image, mask_image, self.width, self.height, 
+                cb, sel_image, mask_image, self.width, self.height,
                 self.get_controlnet_input_images(sel_image))
         else:
             self.client.post_img2img(
                 cb, sel_image, self.width, self.height, self.get_controlnet_input_images(sel_image))
-    
+
     def inpaint_transparency_mask_inserter(self, glayer, transparency_mask):
         orig_selection = self.selection.duplicate() if self.selection else None
         create_mask = self.cfg("create_mask_layer", bool)
@@ -397,7 +395,7 @@ class Script(QObject):
 
         # must convert mask to single channel format
         gray_mask = transparency_mask.convertToFormat(QImage.Format_Grayscale8)
-        
+
         mw = gray_mask.width()
         mh = gray_mask.height()
         # crop mask to the actual selection size
@@ -407,7 +405,7 @@ class Script(QObject):
         mask_ba = img_to_ba(crop_mask)
 
         # Why is sizeInBytes() different from width * height? Just... why?
-        w = crop_mask.bytesPerLine() 
+        w = crop_mask.bytesPerLine()
         h = crop_mask.sizeInBytes()/w
 
         mask_selection = Selection()
@@ -415,7 +413,7 @@ class Script(QObject):
 
         def apply_mask_when_ready():
             # glayer will be selected when it is done being created
-            if self.doc.activeNode() == glayer: 
+            if self.doc.activeNode() == glayer:
                 self.doc.setSelection(mask_selection)
                 add_mask_action.trigger()
                 self.doc.setSelection(orig_selection)
@@ -425,12 +423,12 @@ class Script(QObject):
         timer.timeout.connect(apply_mask_when_ready)
         timer.start(50)
 
-    def apply_controlnet_preview_annotator(self): 
+    def apply_controlnet_preview_annotator(self):
         unit = self.cfg("controlnet_unit", str)
         if self.cfg(f"controlnet{unit}_input_image"):
             image = b64_to_img(self.cfg(f"controlnet{unit}_input_image"))
         else:
-            image = self.get_selection_image()    
+            image = self.get_selection_image()
 
         def cb(response: PromptResponse):
             assert response is not None, ERR_BACKEND
@@ -492,7 +490,7 @@ class Script(QObject):
         if mode == "upscale":
             params = self.client.post_upscale(None, sel_image)
         return json.dumps(params, indent=4)
-    
+
     def apply_run_workflow(self, workflow):
         # freeze selection region
         mode = self.cfg("workflow_to", str)
@@ -500,7 +498,7 @@ class Script(QObject):
         #is_upscale = self.cfg("workflow_to", str) == "upscale"
 
         cb, glayer = self.basic_callback_crafter(mode)
-        
+
         if is_inpaint:
             mask_image, transparency_mask = self.get_mask_image()
             self.node.setVisible(False)
@@ -551,7 +549,7 @@ class Script(QObject):
             self.doc.setActiveNode(layer)
             self.doc.setSelection(orig_selection)
             add_mask_action.trigger()
-                
+
             if create_mask:
                 # collapse transparency mask by default
                 layer.setCollapsed(True)
@@ -617,7 +615,8 @@ class Script(QObject):
         """Update certain config/state from the backend."""
         self.client.get_config()
         self.client.get_embbeddings()
-            
+        self.client.connect_websocket()
+
     def action_update_controlnet_config(self):
         """Update controlnet config from the backend."""
         self.client.get_controlnet_config()
@@ -637,7 +636,7 @@ class Script(QObject):
             return
         self.adjust_selection()
         self.apply_run_workflow(workflow)
-            
+
     def action_update_controlnet_config(self):
         """Update controlnet config from the backend."""
         self.client.get_controlnet_config()
@@ -662,7 +661,7 @@ class Script(QObject):
         if not self.doc:
             return
         return self.apply_get_workflow(mode)
-    
+
     def action_get_last_images(self):
         self.update_selection()
         if not self.doc:

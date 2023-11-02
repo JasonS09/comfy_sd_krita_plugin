@@ -1,4 +1,5 @@
 from ..defaults import (
+    STATE_LOADING,
     STATE_DONE,
     STATE_INIT,
     STATE_INTERRUPT,
@@ -16,7 +17,7 @@ class StatusBar(QLabel):
     def set_status(self, s):
         if s == STATE_READY and STATE_URLERROR not in self.text():
             return
-        if s == STATE_DONE and STATE_INTERRUPT == self.text():
+        if (s == STATE_LOADING or s == STATE_DONE) and STATE_INTERRUPT == self.text():
             return
 
         self.setText(f"<b>Status:</b> {s}")

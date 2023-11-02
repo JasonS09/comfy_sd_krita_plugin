@@ -3,6 +3,9 @@ import socket
 import uuid
 import re
 import ssl
+import websocket
+import struct
+import io
 from math import ceil, floor
 from random import randint
 from typing import Any
@@ -11,7 +14,9 @@ from urllib.parse import urljoin, urlparse, urlencode
 from urllib.request import Request, urlopen
 
 from PyQt5.QtGui import QImage
-from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal, QTimer, QByteArray
+from PyQt5.QtCore import qWarning
+
 
 from .config import Config
 from .defaults import (
@@ -30,6 +35,7 @@ from .defaults import (
     SELECTED_IMAGE,
     SHORT_TIMEOUT,
     STATE_DONE,
+    STATE_LOADING,
     STATE_READY,
     STATE_URLERROR,
     THREADED,
@@ -61,6 +67,83 @@ def get_url(cfg: Config, route: str = ..., prefix: str = ROUTE_PREFIX):
     return url
 
 # krita doesn't reexport QtNetwork
+
+BINARY_EVENT_PREVIEW_IMG = 1
+PREVIEW_TYPE_JPEG = 1
+PREVIEW_TYPE_PNG = 2
+
+class WebSocketThread(QThread):
+    client_id_received = pyqtSignal(str)
+    queue_updated = pyqtSignal(int)
+    node_executing = pyqtSignal(str, str)
+    progress_received = pyqtSignal(int, int)
+    preview_received = pyqtSignal(str, QByteArray)
+
+    def __init__(self, ws_url):
+        QThread.__init__(self)
+        self.stopping = False
+        self.data = None
+
+        websocket.enableTrace(True)
+        self.ws = websocket.WebSocketApp(ws_url,
+                                on_message=self.on_message, on_error=self.on_error,
+                                on_close=self.on_close, on_open=self.on_open)
+
+    def run(self):
+        while not self.stopping:
+            qWarning("Websocket starting")
+            self.ws.run_forever()
+
+    def stop(self):
+        qWarning("Websocket stopping")
+        self.stopping = True
+        self.ws.close()
+
+    def on_message(self, ws, msg):
+        if isinstance(msg, str):
+            data = json.loads(msg)
+            ty = data["type"]
+            if ty == "status":
+                sid = data["data"].get("sid")
+                if sid is not None:
+                    self.client_id_received.emit(sid)
+                queue_remaining = data["data"]["status"]["exec_info"]["queue_remaining"]
+                self.queue_updated.emit(queue_remaining)
+            elif ty == "executing":
+                node_id = data["data"]["node"]
+                prompt_id = data["data"]["prompt_id"]
+                self.node_executing.emit(prompt_id, node_id)
+            elif ty == "progress":
+                value = data["data"]["value"]
+                value_max = data["data"]["max"]
+                self.progress_received.emit(value, value_max)
+        elif isinstance(msg, bytes):
+            bio = io.BytesIO(msg)
+            event_type = struct.unpack('>I', bio.read(4))[0]
+            if event_type == BINARY_EVENT_PREVIEW_IMG:
+                image_type = struct.unpack('>I', bio.read(4))[0]
+                if image_type == PREVIEW_TYPE_JPEG:
+                    image_mime = "image/jpeg"
+                else:  # PREVIEW_TYPE_PNG
+                    image_mime = "image/png"
+                image_bytes = QByteArray(bio.read())
+                self.preview_received.emit(image_mime, image_bytes)
+            else:
+                qWarning(f"Unknown binary event type: {event_type}")
+
+    def on_error(self, ws, error):
+        message = getattr(error, 'strerror', '')
+        if not message:
+            message = getattr(error, 'message', '')
+            if not message:
+                message = str(error)
+        qWarning("Websocket: Error - %s" % message)
+
+    def on_close(self, ws):
+        qWarning("Websocket: ### socket closed ###")
+
+    def on_open(self, ws):
+        qWarning("Websocket: ### socket open ###")
 
 
 class AsyncRequest(QObject):
@@ -152,6 +235,7 @@ class Client(QObject):
     config_updated = pyqtSignal()
     images_received = pyqtSignal(object)
     prompt_sent = pyqtSignal()
+    preview_received = pyqtSignal(str, QByteArray)
 
     def __init__(self, cfg: Config, ext_cfg: Config):
         """It is highly dependent on config's structure to the point it writes directly to it. :/"""
@@ -165,10 +249,20 @@ class Client(QObject):
         self.interrupted = False
         self.client_id = str(uuid.uuid4())
         self.conn = lambda s: None
+        self.ws = None
+        self.ws_url = None
+        self.current_prompt_id = None
+        self.current_node_id = None
+        self.active_prompts = {}
 
     def handle_api_error(self, exc: Exception):
         """Handle exceptions that can occur while interacting with the backend."""
         self.is_connected = False
+        if self.ws is not None:
+            self.ws.stop()
+        self.ws = None
+        self.ws_url = None
+        self.active_prompts.clear()
         try:
             # wtf python? socket raises an error that isnt an Exception??
             if isinstance(exc, socket.timeout):
@@ -200,6 +294,7 @@ class Client(QObject):
                 response.append_image(qimage)
                 # Check if all images are in the response before sending to the script.
                 if len(response.images) == len(response.image_info):
+                    self.status.emit(STATE_DONE)
                     self.images_received.emit(response)
 
             assert history_res is not None, "Backend Error, check terminal"
@@ -213,9 +308,9 @@ class Client(QObject):
             for image in response.image_info:
                 self.get_image(image[0], image[1], image[2], on_image_received)
 
-        if status == STATE_DONE or skip_status_check:
+        if status == STATE_LOADING or status == STATE_DONE or skip_status_check:
             # Prevent undesired executions of this function.
-            if status == STATE_DONE:
+            if status == STATE_LOADING or status == STATE_DONE:
                 try:
                     self.status.disconnect(self.conn)
                 except TypeError:
@@ -241,7 +336,7 @@ class Client(QObject):
         def on_progress_checked(res):
             if not self.interrupted and len(res["queue_running"]) == 0 \
                     and self.is_connected:
-                self.status.emit(STATE_DONE)
+                self.status.emit(STATE_LOADING)
 
             cb(res)
 
@@ -252,6 +347,7 @@ class Client(QObject):
             assert prompt_res is not None, "Backend Error, check terminal"
             self.prompt_sent.emit()
             prompt_id = prompt_res['prompt_id']
+            self.active_prompts[prompt_id] = prompt
             self.conn = lambda s: self.receive_images(s, prompt_id)
             self.status.connect(self.conn)
 
@@ -286,7 +382,7 @@ class Client(QObject):
             self.long_reqs.discard(req)
             self.short_reqs.discard(req)
             if is_long and len(self.long_reqs) == 0:
-                self.status.emit(STATE_DONE)
+                self.status.emit(STATE_LOADING)
 
         req.result.connect(cb)
         req.error.connect(lambda e: self.handle_api_error(e))
@@ -937,6 +1033,58 @@ class Client(QObject):
                 self.set_controlnet_preprocessor_and_model_list(obj)
 
         self.get("/object_info", on_get_response, ignore_no_connection=True)
+
+    def connect_websocket(self):
+        base_url = self.cfg("base_url", str)
+        parsed = urlparse(base_url)
+        ws_protocol = "ws"
+        if parsed.scheme == "https":
+            ws_protocol = "wss"
+        ws_url = f"{ws_protocol}://{parsed.netloc}/ws"
+
+        if ws_url == self.ws_url and self.ws is not None:
+            return
+        self.ws_url = ws_url
+
+        if self.ws is not None:
+            self.ws.stop()
+        self.ws = WebSocketThread(ws_url)
+        self.ws.client_id_received.connect(self.on_client_id_received)
+        self.ws.queue_updated.connect(self.on_queue_updated)
+        self.ws.node_executing.connect(self.on_node_executing)
+        self.ws.progress_received.connect(self.on_progress_received)
+        self.ws.preview_received.connect(self.preview_received.emit)
+        self.ws.start()
+
+    def on_client_id_received(self, client_id):
+        self.client_id = client_id
+
+    def on_queue_updated(self, queue_remaining):
+        self.status.emit(f"Job queued (remaining: {queue_remaining})")
+
+    def get_node_name(self, prompt_id, node_id):
+        node_name = node_id
+        if prompt_id in self.active_prompts:
+            prompt = self.active_prompts[prompt_id]
+            if node_id in prompt:
+                node = prompt[node_id]
+                node_name = node["class_type"]
+        return node_name
+
+    def on_node_executing(self, prompt_id, node_id):
+        if node_id is None or node_id == "":
+            self.status.emit("Prompt finished executing")
+            self.active_prompts.pop(prompt_id, None)
+        else:
+            node_name = self.get_node_name(prompt_id, node_id)
+            self.status.emit(f"Executing node: {node_name}")
+        self.current_prompt_id = prompt_id
+        self.current_node_id = node_id
+
+    def on_progress_received(self, value, value_max):
+        node_name = self.get_node_name(self.current_prompt_id, self.current_node_id)
+        percent = round(value / value_max * 100, 2)
+        self.status.emit(f"Executing node: {node_name} - Step {value} / {value_max} ({percent}%)")
 
     def get_embbeddings(self):
         def check_response(obj):
