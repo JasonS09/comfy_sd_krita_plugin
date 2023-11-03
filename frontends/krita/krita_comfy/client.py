@@ -558,7 +558,7 @@ class Client(QObject):
 
                 return last_lora_id
 
-    def upscale_latent(self, params, width, height, seed, mode, last_loaded_lora = ""):
+    def upscale_latent(self, params, width, height, seed, mode, last_loaded_lora=None):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
 
@@ -581,7 +581,7 @@ class Client(QObject):
                         "cfg": 8,
                         "denoise": denoise if denoise < 1 else 0.30,
                         "model": [
-                            last_loaded_lora if last_loaded_lora != "" else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            last_loaded_lora if last_loaded_lora else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                             0
                         ],
                         "latent_image": [
@@ -613,7 +613,7 @@ class Client(QObject):
                 0
             ]
 
-    def upscale_with_model(self, params, width, height, seed, mode, last_loaded_lora = ""):
+    def upscale_with_model(self, params, width, height, seed, mode, last_loaded_lora=None):
         vae_id = DEFAULT_NODE_IDS["VAELoader"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -688,7 +688,7 @@ class Client(QObject):
                         "cfg": 8,
                         "denoise": denoise if denoise < 1 else 0.30,
                         "model": [
-                            last_loaded_lora if last_loaded_lora != "" else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                            last_loaded_lora if last_loaded_lora else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                             0
                         ],
                         "latent_image": [
@@ -1167,7 +1167,7 @@ class Client(QObject):
         prompt = self.cfg(f"{mode}_prompt", str)
         negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
         loras_loaded = False
-        last_loaded_lora = ""
+        last_loaded_lora = None
         controlnet_loaded = False
         vae_loaded = False
 
@@ -1298,7 +1298,7 @@ class Client(QObject):
 
     def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
-        last_loaded_lora = ""
+        last_loaded_lora=None
         seed = (
             # Qt casts int as 32-bit int
             int(self.cfg("txt2img_seed", str))
@@ -1407,7 +1407,7 @@ class Client(QObject):
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
-        last_loaded_lora = ""
+        last_loaded_lora=None
         seed = (
             # Qt casts int as 32-bit int
             int(self.cfg("img2img_seed", str))
@@ -1533,7 +1533,7 @@ class Client(QObject):
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
         assert mask_img, "Inpaint layer is needed for inpainting!"
-        last_loaded_lora = ""
+        last_loaded_lora=None
         seed = (
             # Qt casts int as 32-bit int
             int(self.cfg("inpaint_seed", str))
