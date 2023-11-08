@@ -443,7 +443,7 @@ class Script(QObject):
         self.client.post_controlnet_preview(cb, image, sel_image)
 
     def apply_simple_upscale(self):
-        insert = self.img_inserter(self.x, self.y, self.width, self.height)
+        insert = self.img_inserter(self.x, self.y, self.width, self.height, mode="upscale")
         sel_image = self.get_selection_image()
 
         path = os.path.join(self.cfg("sample_path", str), f"{int(time.time())}.png")
