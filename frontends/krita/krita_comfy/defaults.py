@@ -96,7 +96,10 @@ DEFAULT_NODE_IDS = {
     #Revision
     "CLIPVisionLoader": "CLIPVisionLoader",
     "CLIPVisionEncode": "CLIPVisionEncode",
-    "unCLIPConditioning": "unCLIPConditioning"
+    "unCLIPConditioning": "unCLIPConditioning",
+
+    #LCM
+    "ModelSamplingDiscrete": "ModelSamplingDiscrete"
 }
 
 # Workflow data placeholders

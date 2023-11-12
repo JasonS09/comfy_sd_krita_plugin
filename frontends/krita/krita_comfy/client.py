@@ -479,7 +479,6 @@ class Client(QObject):
             DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
             DEFAULT_NODE_IDS["ClipSetLastLayer"]: clipsetlastlayer_node
         }
-
         if self.cfg("sd_vae", str) != "None"  \
                 and self.cfg("sd_vae", str) in self.cfg("sd_vae_list", "QStringList"):
             self.load_vae(params, True)
@@ -557,6 +556,30 @@ class Client(QObject):
                     params[cliptextencode_neg_id]["inputs"]["clip"] = [last_lora_id, 1]
 
                 return last_lora_id
+            
+    def config_lcm(self, params, last_loaded_lora):
+        checkpoint_loader_simple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
+        ksampler_id = DEFAULT_NODE_IDS["KSampler"]
+        modelsamplingdiscrete_id = DEFAULT_NODE_IDS["ModelSamplingDiscrete"]
+
+        if self.check_params(params, [checkpoint_loader_simple_id]):
+            modelsamplingdiscrete_node = {
+                "class_type": "ModelSamplingDiscrete",
+                "inputs": {
+                    "sampling": "lcm",
+                    "zsnr": False,
+                    "model": [
+                        checkpoint_loader_simple_id if not last_loaded_lora else last_loaded_lora,
+                        0
+                    ]
+                }
+            }
+            params.update({
+                modelsamplingdiscrete_id: modelsamplingdiscrete_node
+            })
+            #Connect KSampler.
+            params[ksampler_id]["inputs"]["model"] = [modelsamplingdiscrete_id, 0]
+            return modelsamplingdiscrete_id
 
     def upscale_latent(self, params, width, height, seed, mode, last_loaded_lora=None):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -1317,10 +1340,11 @@ class Client(QObject):
 
         if not self.cfg("txt2img_custom_workflow", bool):
             params = self.common_params()
+            sampler = self.cfg("txt2img_sampler", str)
             ksampler_node = {
                 "class_type": "KSampler",
                 "inputs": {
-                    "cfg": 8,
+                    "cfg": self.cfg("txt2img_cfg_scale"),
                     "denoise": 1,
                     "model": [
                         DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
@@ -1338,7 +1362,7 @@ class Client(QObject):
                         DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                         0
                     ],
-                    "sampler_name": self.cfg("txt2img_sampler", str),
+                    "sampler_name": sampler,
                     "scheduler": self.cfg("txt2img_scheduler", str),
                     "seed": seed,
                     "steps": self.cfg("txt2img_steps", int)
@@ -1381,6 +1405,8 @@ class Client(QObject):
             })
 
             last_loaded_lora = self.load_LoRAs(params, "txt2img", fail_on_missing_req_node = True)
+            if sampler == "lcm":
+                last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             workflow = self.cfg("txt2img_workflow", str)
@@ -1428,6 +1454,7 @@ class Client(QObject):
 
         if not self.cfg("img2img_custom_workflow", bool):
             params = self.common_params()
+            sampler = self.cfg("img2img_sampler", str)
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
@@ -1452,7 +1479,7 @@ class Client(QObject):
             ksampler_node = {
                 "class_type": "KSampler",
                 "inputs": {
-                    "cfg": 8,
+                    "cfg": self.cfg("img2img_cfg_scale"),
                     "denoise": self.cfg("img2img_denoising_strength", float),
                     "model": [
                         DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
@@ -1470,7 +1497,7 @@ class Client(QObject):
                         DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                         0
                     ],
-                    "sampler_name": self.cfg("img2img_sampler", str),
+                    "sampler_name": sampler,
                     "scheduler": self.cfg("img2img_scheduler", str),
                     "seed": seed,
                     "steps": self.cfg("img2img_steps", int)
@@ -1507,6 +1534,8 @@ class Client(QObject):
 
             self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"], True)
             last_loaded_lora = self.load_LoRAs(params, "img2img", fail_on_missing_req_node = True)
+            if sampler == "lcm":
+                last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params, last_loaded_lora = self.run_injected_custom_workflow(
@@ -1554,6 +1583,7 @@ class Client(QObject):
 
         if not self.cfg("inpaint_custom_workflow", bool):
             preserve = self.cfg("inpaint_fill", str) == "preserve"
+            sampler = self.cfg("inpaint_sampler", str)
 
             params = self.common_params()
             loadimage_node = {
@@ -1623,7 +1653,7 @@ class Client(QObject):
             ksampler_node = {
                 "class_type": "KSampler",
                 "inputs": {
-                    "cfg": 8,
+                    "cfg": self.cfg("inpaint_cfg_scale"),
                     "denoise": self.cfg("inpaint_denoising_strength", float),
                     "model": [
                         DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
@@ -1641,7 +1671,7 @@ class Client(QObject):
                         DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                         0
                     ],
-                    "sampler_name": self.cfg("inpaint_sampler", str),
+                    "sampler_name": sampler,
                     "scheduler": self.cfg("inpaint_scheduler", str),
                     "seed": seed,
                     "steps": self.cfg("inpaint_steps", int)
@@ -1679,6 +1709,8 @@ class Client(QObject):
 
             self.set_img2img_batch(params, VAEEncode_id, True)
             last_loaded_lora = self.load_LoRAs(params, "inpaint", fail_on_missing_req_node = True)
+            if sampler == "lcm":
+                last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params, last_loaded_lora = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
