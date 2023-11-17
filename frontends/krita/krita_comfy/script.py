@@ -117,9 +117,12 @@ class Script(QObject):
         if not hasattr(self, 'node') or not self.node:
             return None
 
-        prompt_info = PromptBase.from_json(self.node.name())
-        if not prompt_info:
+        try:
+            prompt_info = PromptBase.from_json(self.node.name())
+        except json.decoder.JSONDecodeError:
             self.status_changed.emit(ERR_MISSING_PROMPT)
+            return None
+    
         return prompt_info
 
 

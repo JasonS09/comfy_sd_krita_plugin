@@ -85,6 +85,8 @@ class SDImgPageBase(QWidget):
         )
 
     def update_prompt(self, info: PromptBase):
+        if info is None:
+            return
         self.prompt_layout.qedit_prompt.setPlainText(info.pos_prompt)
         self.prompt_layout.qedit_neg_prompt.setPlainText(info.neg_prompt)
         self.sampler_layout.qcombo.setEditText(info.sampler)
