@@ -27,7 +27,7 @@ class GeneratePage(QWidget):
 
         self.inpaint_tip = TipsLayout(
             ["Inpaint will use the current layer as mask.",
-            '<a href="https://github.com/Interpause/auto-sd-paint-ext/wiki/Usage-Guide#inpainting" target="_blank">Check inpainting guide</a>']
+            '<a href="https://github.com/JasonS09/comfy_sd_krita_plugin/wiki/Inpainting" target="_blank">Check inpainting guide</a>']
         )
 
         self.inpaint = QCheckBox(
