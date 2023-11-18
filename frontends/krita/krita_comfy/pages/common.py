@@ -65,6 +65,10 @@ class SDCommonPage(QWidget):
             script.cfg, "second_pass_steps", label="Second pass steps:", min=1, max=9999, step=1
         )
 
+        self.second_pass_denoise = QSpinBoxLayout(
+            script.cfg, "second_pass_denoise", label="Second pass denoise:", step=0.01,
+        )
+
         self.sddebz = QCheckBox(
             script.cfg, "disable_sddebz_highres", "Disable base/max size"
         )
@@ -78,6 +82,10 @@ class SDCommonPage(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
+        second_pass_layout = QHBoxLayout()
+        second_pass_layout.addLayout(self.second_pass_steps)
+        second_pass_layout.addLayout(self.second_pass_denoise)
+
         layout.addWidget(self.title)
         layout.addLayout(self.sd_model_layout)
         layout.addLayout(self.sd_vae_layout)
@@ -87,7 +95,7 @@ class SDCommonPage(QWidget):
         layout.addLayout(size_layout)
         layout.addLayout(self.upscaler_layout)
         layout.addWidget(self.upscale_second_pass)
-        layout.addLayout(self.second_pass_steps)
+        layout.addLayout(second_pass_layout)
         layout.addWidget(self.interrupt_btn)
         layout.addStretch()
 
@@ -103,6 +111,7 @@ class SDCommonPage(QWidget):
         self.upscaler_layout.cfg_init()
         self.upscale_second_pass.cfg_init()
         self.second_pass_steps.cfg_init()
+        self.second_pass_denoise.cfg_init()
         self.sddebz.cfg_init()
 
         self.title.setVisible(not script.cfg("minimize_ui", bool))
@@ -117,6 +126,7 @@ class SDCommonPage(QWidget):
         self.upscaler_layout.cfg_connect()
         self.upscale_second_pass.cfg_connect()
         self.second_pass_steps.cfg_connect()
+        self.second_pass_denoise.cfg_connect()
         self.sddebz.cfg_connect()
 
         # hide base/max size when disabled

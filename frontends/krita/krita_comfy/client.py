@@ -432,12 +432,59 @@ class Client(QObject):
                 0
             ]
 
-    def common_params(self):
+    def common_params(self, latent_image_id, seed, sampler):
         """Parameters used by most modes."""
         checkpointloadersimple_node = {
             "class_type": "CheckpointLoaderSimple",
             "inputs": {
                 "ckpt_name": self.cfg("sd_model", str)
+            }
+        }
+        ksampler_node = {
+            "class_type": "KSampler",
+            "inputs": {
+                "cfg": self.cfg("cfg_scale", float),
+                "denoise": self.cfg("denoising_strength", float),
+                "model": [
+                    DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
+                    0
+                ],
+                "latent_image": [
+                    latent_image_id,
+                    0
+                ],
+                "negative": [
+                    DEFAULT_NODE_IDS["ClipTextEncode_neg"],
+                    0
+                ],
+                "positive": [
+                    DEFAULT_NODE_IDS["ClipTextEncode_pos"],
+                    0
+                ],
+                "sampler_name": sampler,
+                "scheduler": self.cfg("scheduler", str),
+                "seed": seed,
+                "steps": self.cfg("steps", int)
+            }
+        }
+        cliptextencode_pos_node = {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "clip": [
+                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
+                        0
+                    ],
+                    "text": self.cfg("prompt", str),
+                }
+            }
+        cliptextencode_neg_node = {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+                "clip": [
+                    DEFAULT_NODE_IDS["ClipSetLastLayer"],
+                    0
+                ],
+                "text": self.cfg("negative_prompt", str),
             }
         }
         vaedecode_node = {
@@ -474,7 +521,10 @@ class Client(QObject):
             }
         }
         params = {
+            DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
             DEFAULT_NODE_IDS["CheckpointLoaderSimple"]: checkpointloadersimple_node,
+            DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
+            DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node,
             DEFAULT_NODE_IDS["VAEDecode"]: vaedecode_node,
             DEFAULT_NODE_IDS["SaveImage"]: saveimage_node,
             DEFAULT_NODE_IDS["ClipSetLastLayer"]: clipsetlastlayer_node
@@ -485,7 +535,7 @@ class Client(QObject):
 
         return params
 
-    def load_LoRAs(self, params, mode, connect_last_lora_outputs = True, fail_on_missing_req_node = False):
+    def load_LoRAs(self, params, connect_last_lora_outputs = True, fail_on_missing_req_node = False):
         clipsetlastlayer_id = DEFAULT_NODE_IDS["ClipSetLastLayer"]
         checkpointloadersimple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -497,7 +547,7 @@ class Client(QObject):
             ], fail_on_missing_req_node):
             # Initialize a counter to keep track of the number of nodes added
             lora_count = 0
-            pos_prompt = self.cfg(f"{mode}_prompt", str)
+            pos_prompt = self.cfg("prompt", str)
 
             # Use a regular expression to find all the elements between < and > in the string
             matches = re.findall(re_lora, pos_prompt)
@@ -581,7 +631,7 @@ class Client(QObject):
             params[ksampler_id]["inputs"]["model"] = [modelsamplingdiscrete_id, 0]
             return modelsamplingdiscrete_id
 
-    def upscale_latent(self, params, width, height, seed, mode, last_loaded_lora=None):
+    def upscale_latent(self, params, width, height, seed, last_loaded_lora=None):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
 
@@ -596,13 +646,12 @@ class Client(QObject):
                     "samples": [ksampler_id, 0]
                 }
             }
-            denoise = self.cfg(f"{mode}_denoising_strength", float)
             if self.cfg("upscale_second_pass", bool):
                 ksampler_upscale_node = {
                     "class_type": "KSampler",
                     "inputs": {
-                        "cfg": 8,
-                        "denoise": denoise if denoise < 1 else 0.30,
+                        "cfg": self.cfg("cfg_scale", float),
+                        "denoise": self.cfg("second_pass_denoise", float),
                         "model": [
                             last_loaded_lora if last_loaded_lora else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                             0
@@ -619,8 +668,8 @@ class Client(QObject):
                             DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                             0
                         ],
-                        "sampler_name": self.cfg(f"{mode}_sampler", str),
-                        "scheduler": self.cfg(f"{mode}_scheduler", str),
+                        "sampler_name": self.cfg("sampler", str),
+                        "scheduler": self.cfg("scheduler", str),
                         "seed": seed,
                         "steps": self.cfg("second_pass_steps", int)
                     }
@@ -636,7 +685,7 @@ class Client(QObject):
                 0
             ]
 
-    def upscale_with_model(self, params, width, height, seed, mode, last_loaded_lora=None):
+    def upscale_with_model(self, params, width, height, seed, last_loaded_lora=None):
         vae_id = DEFAULT_NODE_IDS["VAELoader"]
         vaedecode_id = DEFAULT_NODE_IDS["VAEDecode"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -677,7 +726,6 @@ class Client(QObject):
                     ]
                 }
             }
-            denoise = self.cfg(f"{mode}_denoising_strength", float)
             if second_pass:
                 vaedecode_upscale_node = {
                     "class_type": "VAEDecode",
@@ -708,8 +756,8 @@ class Client(QObject):
                 ksampler_upscale_node = {
                     "class_type": "KSampler",
                     "inputs": {
-                        "cfg": 8,
-                        "denoise": denoise if denoise < 1 else 0.30,
+                        "cfg": self.cfg("cfg_scale", float),
+                        "denoise": self.cfg("second_pass_denoise", float),
                         "model": [
                             last_loaded_lora if last_loaded_lora else DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
                             0
@@ -726,8 +774,8 @@ class Client(QObject):
                             DEFAULT_NODE_IDS["ClipTextEncode_pos"],
                             0
                         ],
-                        "sampler_name": self.cfg(f"{mode}_sampler", str),
-                        "scheduler": self.cfg(f"{mode}_scheduler", str),
+                        "sampler_name": self.cfg("sampler", str),
+                        "scheduler": self.cfg("scheduler", str),
                         "seed": seed,
                         "steps": self.cfg("second_pass_steps", int)
                     }
@@ -1025,12 +1073,8 @@ class Client(QObject):
 
             def get_sampler_data():
                 node = obj["KSampler"]["input"]["required"]
-                self.cfg.set("txt2img_sampler_list", node["sampler_name"][0])
-                self.cfg.set("img2img_sampler_list", node["sampler_name"][0])
-                self.cfg.set("inpaint_sampler_list", node["sampler_name"][0])
-                self.cfg.set("txt2img_scheduler_list", node["scheduler"][0])
-                self.cfg.set("img2img_scheduler_list", node["scheduler"][0])
-                self.cfg.set("inpaint_scheduler_list", node["scheduler"][0])
+                self.cfg.set("sampler_list", node["sampler_name"][0])
+                self.cfg.set("scheduler_list", node["scheduler"][0])
 
             def get_models():
                 node = obj["CheckpointLoaderSimple"]["input"]["required"]
@@ -1154,14 +1198,11 @@ class Client(QObject):
 
         self.get("object_info", on_get_response, ignore_no_connection=True)
 
-    def get_workflow(self, params, mode):
-        image_data = {mode: {}}
+    def get_workflow(self, params):
+        image_data = {}
         for id, node in params.items():
             if node["class_type"] in ["LoadBase64Image", "LoadBase64ImageMask"]:
-                image_data[mode][id] = {}
-                image_data[mode][id].update({
-                    "image": node["inputs"]["image"],
-                })
+                image_data[id] = {"image": node["inputs"]["image"]}
                 node["inputs"]["image"] = PRUNED_DATA
         self.cfg.set("workflow_img_data", image_data)
         return params
@@ -1187,8 +1228,8 @@ class Client(QObject):
         clip_set_last_layer_found = self.check_params(params, [clip_set_last_layer_id])
         vae_loader_found = self.check_params(params, [vae_loader_id])
         upscale_model_loader_found = self.check_params(params, [upscale_model_loader_id])
-        prompt = self.cfg(f"{mode}_prompt", str)
-        negative_prompt = self.cfg(f"{mode}_negative_prompt", str)
+        prompt = self.cfg("prompt", str)
+        negative_prompt = self.cfg("negative_prompt", str)
         loras_loaded = False
         last_loaded_lora = None
         controlnet_loaded = False
@@ -1230,7 +1271,7 @@ class Client(QObject):
             
             if model_loader_found:
                 if re.search(LAST_LOADED_LORA, workflow):
-                    last_loaded_lora = self.load_LoRAs(params, mode, False)       
+                    last_loaded_lora = self.load_LoRAs(params, False)       
                     loras_loaded = True
             
             if positive_prompt_found and negative_prompt_found:
@@ -1280,12 +1321,12 @@ class Client(QObject):
             ksampler_inputs = params[ksampler_id]["inputs"]
             if "seed" in ksampler_inputs:
                 ksampler_inputs["seed"] = seed
-            ksampler_inputs["steps"] = self.cfg(f"{mode}_steps", int)
-            ksampler_inputs["cfg"] = self.cfg(f"{mode}_cfg_scale", float)
+            ksampler_inputs["steps"] = self.cfg("steps", int)
+            ksampler_inputs["cfg"] = self.cfg("cfg_scale", float)
             if "denoise" in ksampler_inputs and mode != "txt2img":
-                ksampler_inputs["denoise"] = self.cfg(f"{mode}_denoising_strength", float)
-            ksampler_inputs["sampler_name"] = self.cfg(f"{mode}_sampler", str)
-            ksampler_inputs["scheduler"] = self.cfg(f"{mode}_scheduler", str)
+                ksampler_inputs["denoise"] = self.cfg("denoising_strength", float)
+            ksampler_inputs["sampler_name"] = self.cfg("sampler", str)
+            ksampler_inputs["scheduler"] = self.cfg("scheduler", str)
 
         params = load_placeholder_data()
 
@@ -1296,7 +1337,7 @@ class Client(QObject):
             params[negative_prompt_id]["inputs"]["text"] = negative_prompt
         
         if not loras_loaded and model_loader_found:
-            last_loaded_lora = self.load_LoRAs(params, mode)
+            last_loaded_lora = self.load_LoRAs(params)
         
         if not controlnet_loaded and positive_prompt_found and negative_prompt_found:
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height)
@@ -1318,56 +1359,34 @@ class Client(QObject):
             params[latent_upscale_id]["inputs"]["width"] = original_width
 
         return params, last_loaded_lora
-
-    def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
-        """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
+    
+    def setup_post(self, img_width, img_height):
         last_loaded_lora=None
         seed = (
             # Qt casts int as 32-bit int
-            int(self.cfg("txt2img_seed", str))
-            if not self.cfg("txt2img_seed", str).strip() == ""
+            int(self.cfg("seed", str))
+            if not self.cfg("seed", str).strip() == ""
             else randint(0, 18446744073709552000)
         )
-        resized_width, resized_height = width, height
+        resized_width, resized_height = img_width, img_height
         disable_base_and_max_size = self.cfg(
             "disable_sddebz_highres", bool)
 
         if not disable_base_and_max_size:
             resized_width, resized_height = calculate_resized_image_dimensions(
                 self.cfg("sd_base_size", int), self.cfg(
-                    "sd_max_size", int), width, height
+                    "sd_max_size", int), img_width, img_height
             )
 
-        if not self.cfg("txt2img_custom_workflow", bool):
-            params = self.common_params()
-            sampler = self.cfg("txt2img_sampler", str)
-            ksampler_node = {
-                "class_type": "KSampler",
-                "inputs": {
-                    "cfg": self.cfg("txt2img_cfg_scale"),
-                    "denoise": 1,
-                    "model": [
-                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0
-                    ],
-                    "latent_image": [
-                        DEFAULT_NODE_IDS["EmptyLatentImage"],
-                        0
-                    ],
-                    "negative": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                        0
-                    ],
-                    "positive": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                        0
-                    ],
-                    "sampler_name": sampler,
-                    "scheduler": self.cfg("txt2img_scheduler", str),
-                    "seed": seed,
-                    "steps": self.cfg("txt2img_steps", int)
-                }
-            }
+        return (last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size)
+
+    def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
+        """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
+        last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size = self.setup_post(width, height)
+
+        if not self.cfg("custom_workflow", bool):
+            sampler = self.cfg("sampler", str)
+            params = self.common_params(DEFAULT_NODE_IDS["EmptyLatentImage"], seed, sampler)  
             emptylatentimage_node = {
                 "class_type": "EmptyLatentImage",
                 "inputs": {
@@ -1376,40 +1395,16 @@ class Client(QObject):
                     "width": resized_width
                 }
             }
-            cliptextencode_pos_node = {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "clip": [
-                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
-                        0
-                    ],
-                    "text": self.cfg("txt2img_prompt", str),
-                }
-            }
-            cliptextencode_neg_node = {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "clip": [
-                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
-                        0
-                    ],
-                    "text": self.cfg("txt2img_negative_prompt", str),
-                }
-            }
-
             params.update({
-                DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
                 DEFAULT_NODE_IDS["EmptyLatentImage"]: emptylatentimage_node,
-                DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
-                DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
-            last_loaded_lora = self.load_LoRAs(params, "txt2img", fail_on_missing_req_node = True)
+            last_loaded_lora = self.load_LoRAs(params, fail_on_missing_req_node = True)
             if sampler == "lcm":
                 last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
-            workflow = self.cfg("txt2img_workflow", str)
+            workflow = self.cfg("workflow", str)
             params, last_loaded_lora = self.run_injected_custom_workflow(
                 workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height, width, height
             )
@@ -1418,43 +1413,26 @@ class Client(QObject):
         if not disable_base_and_max_size and not upscaler_name == "None" and\
             (min(width, height) > self.cfg("sd_base_size", int)
                 or max(width, height) > self.cfg("sd_max_size", int)):
-            upscaler_name = self.cfg("upscaler_name", str)
             if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
                   self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
                 self.upscale_with_model(
-                    params, width, height, seed, "txt2img", last_loaded_lora)
+                    params, width, height, seed, last_loaded_lora)
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
-                self.upscale_latent(params, width, height, seed, "txt2img", last_loaded_lora)
+                self.upscale_latent(params, width, height, seed, last_loaded_lora)
 
         if cb is None:
-            return self.get_workflow(params, "txt2img")
+            return self.get_workflow(params)
         
         self.get_images(params, cb)
 
     def post_img2img(self, cb, src_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
-        last_loaded_lora=None
-        seed = (
-            # Qt casts int as 32-bit int
-            int(self.cfg("img2img_seed", str))
-            if not self.cfg("img2img_seed", str).strip() == ""
-            else randint(0, 18446744073709552000)
-        )
-        resized_width, resized_height = width, height
-        disable_base_and_max_size = self.cfg(
-            "disable_sddebz_highres", bool)
-
-        if not disable_base_and_max_size:
-            resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg(
-                    "sd_max_size", int), width, height
-            )
-
+        last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size = self.setup_post(width, height)
         src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
 
-        if not self.cfg("img2img_custom_workflow", bool):
-            params = self.common_params()
-            sampler = self.cfg("img2img_sampler", str)
+        if not self.cfg("custom_workflow", bool):
+            sampler = self.cfg("sampler", str)
+            params = self.common_params(DEFAULT_NODE_IDS["VAEEncode"], seed, sampler)
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
@@ -1476,70 +1454,20 @@ class Client(QObject):
                     ]
                 }
             }
-            ksampler_node = {
-                "class_type": "KSampler",
-                "inputs": {
-                    "cfg": self.cfg("img2img_cfg_scale"),
-                    "denoise": self.cfg("img2img_denoising_strength", float),
-                    "model": [
-                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0
-                    ],
-                    "latent_image": [
-                        DEFAULT_NODE_IDS["VAEEncode"],
-                        0
-                    ],
-                    "negative": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                        0
-                    ],
-                    "positive": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                        0
-                    ],
-                    "sampler_name": sampler,
-                    "scheduler": self.cfg("img2img_scheduler", str),
-                    "seed": seed,
-                    "steps": self.cfg("img2img_steps", int)
-                }
-            }
-            cliptextencode_pos_node = {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "clip": [
-                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
-                        0
-                    ],
-                    "text": self.cfg("img2img_prompt", str),
-                }
-            }
-            cliptextencode_neg_node = {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "clip": [
-                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
-                        0
-                    ],
-                    "text": self.cfg("img2img_negative_prompt", str),
-                }
-            }
 
             params.update({
-                DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
                 DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node,
-                DEFAULT_NODE_IDS["VAEEncode"]: vaeencode_node,
-                DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
-                DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
+                DEFAULT_NODE_IDS["VAEEncode"]: vaeencode_node
             })
 
             self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"], True)
-            last_loaded_lora = self.load_LoRAs(params, "img2img", fail_on_missing_req_node = True)
+            last_loaded_lora = self.load_LoRAs(params, fail_on_missing_req_node = True)
             if sampler == "lcm":
                 last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params, last_loaded_lora = self.run_injected_custom_workflow(
-                self.cfg("img2img_workflow", str), seed, "img2img", src_img, None, 
+                self.cfg("workflow", str), seed, "img2img", src_img, None, 
                 controlnet_src_imgs, resized_width, resized_height, width, height
             )
 
@@ -1549,43 +1477,30 @@ class Client(QObject):
                 or max(width, height) > self.cfg("sd_max_size", int)):
             if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
              self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
-                self.upscale_with_model(
-                    params, width, height, seed, "img2img", last_loaded_lora)
+                self.upscale_with_model(params, width, height, seed, last_loaded_lora)
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
-                self.upscale_latent(params, width, height, seed, "img2img", last_loaded_lora)
+                self.upscale_latent(params, width, height, seed, last_loaded_lora)
 
         if cb is None:
-            return self.get_workflow(params, "img2img")
+            return self.get_workflow(params)
         
         self.get_images(params, cb)
 
     def post_inpaint(self, cb, src_img, mask_img, width, height, controlnet_src_imgs: dict = {}):
         """Leave controlnet_src_imgs empty to not use controlnet."""
         assert mask_img, "Inpaint layer is needed for inpainting!"
-        last_loaded_lora=None
-        seed = (
-            # Qt casts int as 32-bit int
-            int(self.cfg("inpaint_seed", str))
-            if not self.cfg("inpaint_seed", str).strip() == ""
-            else randint(0, 18446744073709552000)
-        )
-        resized_width, resized_height = width, height
-        disable_base_and_max_size = self.cfg(
-            "disable_sddebz_highres", bool)
+        last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size = self.setup_post(width, height)
+        src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
+        mask_img = mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
 
-        if not disable_base_and_max_size:
-            resized_width, resized_height = calculate_resized_image_dimensions(
-                self.cfg("sd_base_size", int), self.cfg(
-                    "sd_max_size", int), width, height
-            )
-            src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
-            mask_img = mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
-
-        if not self.cfg("inpaint_custom_workflow", bool):
+        if not self.cfg("custom_workflow", bool):
             preserve = self.cfg("inpaint_fill", str) == "preserve"
-            sampler = self.cfg("inpaint_sampler", str)
+            sampler = self.cfg("sampler", str)
 
-            params = self.common_params()
+            params = self.common_params(
+                DEFAULT_NODE_IDS["SetLatentNoiseMask"] if preserve else DEFAULT_NODE_IDS["VAEEncodeForInpaint"],
+                seed, sampler
+            )
             loadimage_node = {
                 "class_type": "LoadBase64Image",
                 "inputs": {
@@ -1650,70 +1565,20 @@ class Client(QObject):
                         ]
                     }
                 }
-            ksampler_node = {
-                "class_type": "KSampler",
-                "inputs": {
-                    "cfg": self.cfg("inpaint_cfg_scale"),
-                    "denoise": self.cfg("inpaint_denoising_strength", float),
-                    "model": [
-                        DEFAULT_NODE_IDS["CheckpointLoaderSimple"],
-                        0
-                    ],
-                    "latent_image": [
-                        DEFAULT_NODE_IDS["SetLatentNoiseMask"] if preserve else DEFAULT_NODE_IDS["VAEEncodeForInpaint"],
-                        0
-                    ],
-                    "negative": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_neg"],
-                        0
-                    ],
-                    "positive": [
-                        DEFAULT_NODE_IDS["ClipTextEncode_pos"],
-                        0
-                    ],
-                    "sampler_name": sampler,
-                    "scheduler": self.cfg("inpaint_scheduler", str),
-                    "seed": seed,
-                    "steps": self.cfg("inpaint_steps", int)
-                }
-            }
-            cliptextencode_pos_node = {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "clip": [
-                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
-                        0
-                    ],
-                    "text": self.cfg("inpaint_prompt", str),
-                }
-            }
-            cliptextencode_neg_node = {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "clip": [
-                        DEFAULT_NODE_IDS["ClipSetLastLayer"],
-                        0
-                    ],
-                    "text": self.cfg("inpaint_negative_prompt", str),
-                }
-            }
             VAEEncode_id = DEFAULT_NODE_IDS["VAEEncode"] if preserve else DEFAULT_NODE_IDS["VAEEncodeForInpaint"]
             params.update({
-                DEFAULT_NODE_IDS["KSampler"]: ksampler_node,
                 DEFAULT_NODE_IDS["LoadBase64Image"]: loadimage_node,
                 DEFAULT_NODE_IDS["LoadBase64ImageMask"]: loadmask_node,
                 VAEEncode_id: vaeencode_node,
-                DEFAULT_NODE_IDS["ClipTextEncode_pos"]: cliptextencode_pos_node,
-                DEFAULT_NODE_IDS["ClipTextEncode_neg"]: cliptextencode_neg_node
             })
 
             self.set_img2img_batch(params, VAEEncode_id, True)
-            last_loaded_lora = self.load_LoRAs(params, "inpaint", fail_on_missing_req_node = True)
+            last_loaded_lora = self.load_LoRAs(params, fail_on_missing_req_node = True)
             if sampler == "lcm":
                 last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
-            params, last_loaded_lora = self.run_injected_custom_workflow(self.cfg("inpaint_workflow", str), seed,
+            params, last_loaded_lora = self.run_injected_custom_workflow(self.cfg("workflow", str), seed,
                                      "inpaint", src_img, mask_img, controlnet_src_imgs, 
                                      resized_width, resized_height, width, height)
         
@@ -1725,8 +1590,7 @@ class Client(QObject):
             if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
              self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
                 # Set common upscaling nodes for model upscaling (eg. Ultrasharp).
-                self.upscale_with_model(
-                    params, width, height, seed, "inpaint", last_loaded_lora)    
+                self.upscale_with_model(params, width, height, seed, last_loaded_lora)    
                 if second_pass:
                     # Set a new latent noise mask for the second pass.
                     setlatentnoisemask_node = {
@@ -1743,7 +1607,7 @@ class Client(QObject):
                         }
                     }
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
-                self.upscale_latent(params, width, height, seed, "inpaint", last_loaded_lora)
+                self.upscale_latent(params, width, height, seed, last_loaded_lora)
                 # Set a new latent noise mask for the second pass.
                 if second_pass:
                     setlatentnoisemask_node = {
@@ -1771,13 +1635,13 @@ class Client(QObject):
                 ]
 
         if cb is None:
-            return self.get_workflow(params, "inpaint")
+            return self.get_workflow(params)
 
         self.get_images(params, cb)
 
     def post_upscale(self, cb, src_img):
         params = {}
-        if not self.cfg("upscale_custom_workflow", bool):
+        if not self.cfg("custom_workflow", bool):
             def upscale_latent():
                 imagescale_node = {
                     "class_type": "ImageScaleBy",
@@ -1944,9 +1808,7 @@ class Client(QObject):
         if mask == None:
             mask = src_img
 
-        mode = self.cfg("workflow_to", str)
-        if mode in self.cfg("workflow_img_data", dict):
-            workflow_image_data = self.cfg("workflow_img_data", dict)[mode]
+        workflow_image_data = self.cfg("workflow_img_data", dict)
         for node_id, node in params.items():
             if node["class_type"] in ["LoadBase64Image", "LoadBase64ImageMask"]:
                 for input_key, input_value in node["inputs"].items():

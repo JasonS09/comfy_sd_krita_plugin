@@ -14,11 +14,9 @@ from krita import Krita
 from .config import Config
 from .defaults import (
     TAB_CONFIG,
-    TAB_IMG2IMG,
-    TAB_INPAINT,
+    TAB_GENERATE,
     TAB_PREVIEW,
     TAB_SDCOMMON,
-    TAB_TXT2IMG,
     TAB_UPSCALE,
     TAB_CONTROLNET,
     TAB_WORKFLOW,
@@ -218,8 +216,7 @@ def clear_layout(layout: QLayout):
 
 def get_workflow(ext_cfg: Config, get_workflow_func, mode: str):
     workflow = get_workflow_func(mode)
-    ext_cfg.set(f"{mode}_workflow", workflow)
-    ext_cfg.set("workflow_to", mode)
+    ext_cfg.set("workflow", workflow)
     dockers = Krita.instance().dockers()
     for d in dockers:
         if d.objectName() == TAB_WORKFLOW:
@@ -273,11 +270,9 @@ def reset_docker_layout():
         TAB_SDCOMMON,
         TAB_CONFIG,
         TAB_CONTROLNET,
-        TAB_IMG2IMG,
-        TAB_TXT2IMG,
         TAB_UPSCALE,
         TAB_WORKFLOW,
-        TAB_INPAINT,
+        TAB_GENERATE,
         TAB_PREVIEW,
     }
     instance = Krita.instance()
@@ -296,10 +291,8 @@ def reset_docker_layout():
     qmainwindow.tabifyDockWidget(dockers[TAB_SDCOMMON], dockers[TAB_CONFIG])
     qmainwindow.tabifyDockWidget(dockers[TAB_SDCOMMON], dockers[TAB_CONTROLNET])
     qmainwindow.tabifyDockWidget(dockers[TAB_SDCOMMON], dockers[TAB_PREVIEW])
-    qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_IMG2IMG])
-    qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_INPAINT])
-    qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_UPSCALE])
-    qmainwindow.tabifyDockWidget(dockers[TAB_TXT2IMG], dockers[TAB_WORKFLOW])
+    qmainwindow.tabifyDockWidget(dockers[TAB_GENERATE], dockers[TAB_UPSCALE])
+    qmainwindow.tabifyDockWidget(dockers[TAB_GENERATE], dockers[TAB_WORKFLOW])
     dockers[TAB_SDCOMMON].raise_()
-    dockers[TAB_INPAINT].raise_()
+    dockers[TAB_GENERATE].raise_()
 

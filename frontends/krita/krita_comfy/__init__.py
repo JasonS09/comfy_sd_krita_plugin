@@ -5,11 +5,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "websocket-client"))
 from krita import DockWidgetFactory, DockWidgetFactoryBase, Krita
 from .defaults import (
     TAB_CONFIG,
-    TAB_IMG2IMG,
-    TAB_INPAINT,
+    TAB_GENERATE,
     TAB_PREVIEW,
     TAB_SDCOMMON,
-    TAB_TXT2IMG,
     TAB_UPSCALE,
     TAB_CONTROLNET,
     TAB_WORKFLOW
@@ -18,13 +16,11 @@ from .docker import create_docker
 from .extension import SDPluginExtension
 from .pages import (
     ConfigPage,
-    Img2ImgPage,
-    InpaintPage,
     SDCommonPage,
-    Txt2ImgPage,
     UpscalePage,
     ControlNetPage,
-    WorkflowPage
+    WorkflowPage,
+    GeneratePage
 )
 from .pages.preview import PreviewPage
 from .script import script
@@ -41,23 +37,9 @@ instance.addDockWidgetFactory(
 )
 instance.addDockWidgetFactory(
     DockWidgetFactory(
-        TAB_TXT2IMG,
+        TAB_GENERATE,
         DockWidgetFactoryBase.DockLeft,
-        create_docker(Txt2ImgPage),
-    )
-)
-instance.addDockWidgetFactory(
-    DockWidgetFactory(
-        TAB_IMG2IMG,
-        DockWidgetFactoryBase.DockLeft,
-        create_docker(Img2ImgPage),
-    )
-)
-instance.addDockWidgetFactory(
-    DockWidgetFactory(
-        TAB_INPAINT,
-        DockWidgetFactoryBase.DockLeft,
-        create_docker(InpaintPage),
+        create_docker(GeneratePage),
     )
 )
 instance.addDockWidgetFactory(

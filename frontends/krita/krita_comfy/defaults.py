@@ -43,9 +43,7 @@ ERR_EMPTY_RESPONSE = "Backend Error, No images in response, Check ComfyUI termin
 # tab IDs
 TAB_SDCOMMON = "krita_diff_sdcommon"
 TAB_CONFIG = "krita_diff_config"
-TAB_TXT2IMG = "krita_diff_txt2img"
-TAB_IMG2IMG = "krita_diff_img2img"
-TAB_INPAINT = "krita_diff_inpaint"
+TAB_GENERATE = "krita_diff_generate"
 TAB_UPSCALE = "krita_diff_upscale"
 TAB_WORKFLOW = "krita_diff_workflow"
 TAB_CONTROLNET = "krita_diff_controlnet"
@@ -135,75 +133,38 @@ class Defaults:
     sd_batch_count: int = 1
     sd_base_size: int = 512
     sd_max_size: int = 768
-    sd_tiling: bool = False
     upscaler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     upscaler_methods_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     upscaler_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
     upscaler_name: str = "None"
     upscale_second_pass: bool = True
     second_pass_steps: int = 10
-    face_restorer_model_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    face_restorer_model: str = "None"
-    codeformer_weight: float = 0.5
+    second_pass_denoise: float = 0.3
 
-    txt2img_prompt: str = ""
-    txt2img_negative_prompt: str = ""
-    txt2img_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    txt2img_sampler: str = "Euler a"
-    txt2img_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    txt2img_scheduler: str = "normal"
-    txt2img_steps: int = 20
-    txt2img_cfg_scale: float = 7.0
-    txt2img_denoising_strength: float = 0.3
-    txt2img_seed: str = ""
-    txt2img_workflow: str = ""
-    txt2img_custom_workflow: bool = False
-
-    img2img_prompt: str = ""
-    img2img_negative_prompt: str = ""
-    img2img_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    img2img_sampler: str = "Euler a"
-    img2img_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    img2img_scheduler: str = "normal"
-    img2img_steps: int = 20
-    img2img_cfg_scale: float = 8.0
-    img2img_denoising_strength: float = 0.5
-    img2img_seed: str = ""
-    img2img_input_save_as: str = "input.png"
-    img2img_workflow: str = ""
-    img2img_custom_workflow: bool = False
-
+    prompt: str = ""
+    negative_prompt: str = ""
+    sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    sampler: str = "Euler a"
+    scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
+    scheduler: str = "normal"
+    steps: int = 20
+    cfg_scale: float = 7.0
+    denoising_strength: float = 0.3
+    seed: str = ""
+    workflow: str = ""
+    custom_workflow: bool = False
+    inpaint: bool = False
     inpaint_auto_generate_mask: bool = True
-    inpaint_prompt: str = ""
-    inpaint_negative_prompt: str = ""
-    inpaint_sampler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    inpaint_sampler: str = "LMS"
-    inpaint_scheduler_list: List[str] = field(default_factory=lambda: [ERROR_MSG])
-    inpaint_scheduler: str = "normal"
-    inpaint_steps: int = 20
-    inpaint_cfg_scale: float = 8.0
-    inpaint_denoising_strength: float = 0.40
-    inpaint_seed: str = ""
     inpaint_invert_mask: bool = False
-    # inpaint_mask_blur: int = 4
     inpaint_fill_list: List[str] = field(
         default_factory=lambda: ["preserve", "latent noise"]
     )
     inpaint_fill: str = "preserve"
-    # inpaint_full_res: bool = False
-    # inpaint_full_res_padding: int = 32
-    inpaint_mask_weight: float = 1.0
-    inpaint_workflow: str = ""
-    inpaint_custom_workflow: bool = False
 
     upscale_upscaler_name: str = "None"
     upscale_upscale_by: float = 1.0
     upscale_workflow: str = ""
     upscale_custom_workflow: bool = False
-
-    workflow_to_list: List[str] = field(default_factory=lambda: ["none", "txt2img", "img2img", "inpaint", "upscale"])
-    workflow_to: str = "none"
-    none_workflow: str = ""
     workflow_img_data: Dict[str, object] = field(default_factory=lambda: {})
 
     controlnet_unit: str = "0"

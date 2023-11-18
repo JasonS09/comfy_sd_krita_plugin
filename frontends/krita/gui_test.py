@@ -3,7 +3,7 @@ import sys
 from PyQt5.QtWidgets import QMainWindow, QApplication, QVBoxLayout, QWidget
 
 from krita_comfy.config import Config
-from krita_comfy.pages.txt2img import Txt2ImgPage
+from krita_comfy.pages.generate import GeneratePage
 
 """Test App for GUI components
     This file is not part of the Krita plugin.
@@ -18,7 +18,7 @@ class Test_Window(QMainWindow):
         self.setCentralWidget(QWidget())
         layout = QVBoxLayout(self.centralWidget())
         layout.setContentsMargins(0, 0, 0, 0)
-        self.page = Txt2ImgPage()
+        self.page = GeneratePage()
         layout.addWidget(self.page)
 
 
