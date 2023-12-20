@@ -1414,9 +1414,8 @@ class Client(QObject):
             (min(width, height) > self.cfg("sd_base_size", int)
                 or max(width, height) > self.cfg("sd_max_size", int)):
             if upscaler_name in self.cfg("upscaler_model_list", "QStringList") and not \
-                  self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]):
-                self.upscale_with_model(
-                    params, width, height, seed, last_loaded_lora)
+                  self.check_params(params, [DEFAULT_NODE_IDS["ImageUpscaleWithModel"]]): #Check if it's not being upscaled already.
+                self.upscale_with_model(params, width, height, seed, last_loaded_lora)
             elif not self.check_params(params, [DEFAULT_NODE_IDS["LatentUpscale"]]):
                 self.upscale_latent(params, width, height, seed, last_loaded_lora)
 

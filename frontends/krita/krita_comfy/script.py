@@ -32,7 +32,7 @@ from .defaults import (
 )
 from .utils import (
     b64_to_img,
-    calculate_resized_image_dimensions,
+    get_mode,
     find_optimal_selection_region,
     img_to_ba,
     save_img,
@@ -495,8 +495,7 @@ class Script(QObject):
         return json.dumps(params, indent=4)
 
     def apply_run_workflow(self, workflow):
-        # freeze selection region
-        mode = self.cfg("workflow_to", str)
+        mode = get_mode(script.cfg)
         is_inpaint = mode == "inpaint"
         #is_upscale = self.cfg("workflow_to", str) == "upscale"
 

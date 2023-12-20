@@ -12,7 +12,7 @@ from ..widgets import (
 )
 
 from ..prompt import PromptBase
-from ..utils import get_workflow
+from ..utils import get_workflow, get_mode
 
 class GeneratePage(QWidget):
     name = "Generate"
@@ -148,14 +148,6 @@ class GeneratePage(QWidget):
         else:
             script.action_txt2img()
 
-    def get_workflow(self):
-        if script.cfg("inpaint", bool):
-            get_workflow(script.cfg, script.action_get_workflow, "inpaint")
-        elif script.cfg("denoising_strength", float) < 1:
-            get_workflow(script.cfg, script.action_get_workflow, "img2img")
-        else:
-            get_workflow(script.cfg, script.action_get_workflow, "txt2img")
-
     def cfg_init(self):
         self.custom_workflow.cfg_init()
         self.inpaint.cfg_init()
@@ -190,4 +182,4 @@ class GeneratePage(QWidget):
         script.status_changed.connect(lambda s: self.status_bar.set_status(s))
         self.inpaint.toggled.connect(lambda i: self.toggle_inpaint(i))
         self.btn.released.connect(self.generate)
-        self.get_workflow_btn.released.connect(self.get_workflow)
+        self.get_workflow_btn.released.connect(lambda: get_workflow(script.cfg, script.action_get_workflow, get_mode()))

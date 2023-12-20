@@ -224,6 +224,12 @@ def get_workflow(ext_cfg: Config, get_workflow_func, mode: str):
             d.raise_()
             break
 
+def get_mode(cfg: Config):
+    if cfg("inpaint", bool):
+        return "inpaint"
+    if cfg("denoising_strength", float) < 1:
+        return "img2img"
+    return "txt2img"
 
 def fuzzy_match_LoRA(cfg: Config, name: str) -> (bool, [str]):
     # Take the given string and attempt to match it to the sd_lora_list
