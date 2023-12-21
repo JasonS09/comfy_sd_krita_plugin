@@ -182,4 +182,4 @@ class GeneratePage(QWidget):
         script.status_changed.connect(lambda s: self.status_bar.set_status(s))
         self.inpaint.toggled.connect(lambda i: self.toggle_inpaint(i))
         self.btn.released.connect(self.generate)
-        self.get_workflow_btn.released.connect(lambda: get_workflow(script.cfg, script.action_get_workflow, get_mode()))
+        self.get_workflow_btn.released.connect(lambda: get_workflow(script.cfg, script.action_get_workflow, get_mode(script.cfg)))
