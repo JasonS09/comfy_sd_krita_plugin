@@ -1,5 +1,5 @@
 {
-   "1": {
+    "1": {
         "inputs": {
             "clip_name": "ip-adapter_sd15-image-encoder.bin"
         },
@@ -7,13 +7,13 @@
     },
     "IPAdapterModelLoader": {
         "inputs": {
-            "ipadapter_file": "ip-adapter-plus_sd15.bin"
+            "ipadapter_file": "ip-adapter_sd15.safetensors"
         },
         "class_type": "IPAdapterModelLoader"
     },
     "LoadImage": {
         "inputs": {
-            "image": "82j_eIf5.jpg",
+            "image": "korytema.png",
             "choose file to upload": "image"
         },
         "class_type": "LoadImage",
@@ -21,36 +21,29 @@
             "1610735fc36e9bbd63c770f1133308999d8684812a0260d0694ec415a571d2d2"
         ]
     },
-    "31": {
-        "inputs": {
-            "weight": 1.0,
-            "model": [
-                "<<LastLoadedLora|4>>",
-                0
-            ],
-            "ipadapter": [
-                "IPAdapterModelLoader",
-                0
-            ],
-            "clip_vision_output": [
-                "33",
-                0
-            ]
-        },
-        "class_type": "IPAdapterApply"
+      "47": {
+    "inputs": {
+      "weight": 0.8,
+      "noise": 0,
+      "weight_type": "original",
+      "ipadapter": [
+        "IPAdapterModelLoader",
+        0
+      ],
+      "clip_vision": [
+        "1",
+        0
+      ],
+      "image": [
+        "LoadBase64Image",
+        0
+      ],
+      "model": [
+        "<<LastLoadedLora|4>>",
+        0
+      ]
     },
-    "33": {
-        "inputs": {
-            "clip_vision": [
-                "1",
-                0
-            ],
-            "image": [
-                "LoadImage",
-                0
-            ]
-        },
-        "class_type": "IPAdapterCLIPVisionEncode"
+    "class_type": "IPAdapterApply"
     },
     "4": {
         "class_type": "CheckpointLoaderSimple",
@@ -110,7 +103,7 @@
             "cfg": 8,
             "denoise": 0.5,
             "model": [
-                "31",
+                "47",
                 0
             ],
             "latent_image": [
@@ -134,13 +127,13 @@
     "LoadBase64Image": {
         "class_type": "LoadBase64Image",
         "inputs": {
-            "image": "<<PrunedImageData>>"
+            "image": "<<SelectedImage>>"
         }
     },
     "LoadBase64ImageMask": {
         "class_type": "LoadBase64ImageMask",
         "inputs": {
-            "image": "<<PrunedImageData>>",
+            "image": "<<CurrentLayerAsMask>>",
             "channel": "alpha"
         }
     },
