@@ -140,6 +140,8 @@ class SDCommonPage(QWidget):
             self.upscale_second_pass.setVisible(visible)
             self.second_pass_steps.qspin.setVisible(visible)
             self.second_pass_steps.qlabel.setVisible(visible)
+            self.second_pass_denoise.qspin.setVisible(visible)
+            self.second_pass_denoise.qlabel.setVisible(visible)
 
         self.sddebz.toggled.connect(lambda b: toggle_sddebz_highres(not b))
         toggle_sddebz_highres(not script.cfg("disable_sddebz_highres", bool))
