@@ -610,26 +610,27 @@ class Client(QObject):
     def config_lcm(self, params, last_loaded_lora):
         checkpoint_loader_simple_id = DEFAULT_NODE_IDS["CheckpointLoaderSimple"]
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
-        modelsamplingdiscrete_id = DEFAULT_NODE_IDS["ModelSamplingDiscrete"]
+        model_sampling_discrete_id = DEFAULT_NODE_IDS["ModelSamplingDiscrete"]
 
-        if self.check_params(params, [checkpoint_loader_simple_id]):
-            modelsamplingdiscrete_node = {
-                "class_type": "ModelSamplingDiscrete",
-                "inputs": {
-                    "sampling": "lcm",
-                    "zsnr": False,
-                    "model": [
-                        checkpoint_loader_simple_id if not last_loaded_lora else last_loaded_lora,
-                        0
-                    ]
+        if self.check_params(params, [checkpoint_loader_simple_id, ksampler_id]):
+            if not self.check_params(params, [model_sampling_discrete_id]): #Check if there isn't already a ModelSamplingDiscreteNode.
+                model_sampling_discrete_node = {
+                    "class_type": "ModelSamplingDiscrete",
+                    "inputs": {
+                        "sampling": "lcm",
+                        "zsnr": False,
+                        "model": [
+                            checkpoint_loader_simple_id if not last_loaded_lora else last_loaded_lora,
+                            0
+                        ]
+                    }
                 }
-            }
-            params.update({
-                modelsamplingdiscrete_id: modelsamplingdiscrete_node
-            })
-            #Connect KSampler.
-            params[ksampler_id]["inputs"]["model"] = [modelsamplingdiscrete_id, 0]
-            return modelsamplingdiscrete_id
+                params.update({
+                    model_sampling_discrete_id: model_sampling_discrete_node
+                })
+                #Connect KSampler.
+                params[ksampler_id]["inputs"]["model"] = [model_sampling_discrete_id, 0]
+            return model_sampling_discrete_id
 
     def upscale_latent(self, params, width, height, seed, last_loaded_lora=None):
         ksampler_id = DEFAULT_NODE_IDS["KSampler"]
@@ -1383,9 +1384,9 @@ class Client(QObject):
     def post_txt2img(self, cb, width, height, src_img = None, controlnet_src_imgs: dict = {}):
         """Uses official API. Leave controlnet_src_imgs empty to not use controlnet."""
         last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size = self.setup_post(width, height)
+        sampler = self.cfg("sampler", str)
 
         if not self.cfg("custom_workflow", bool):
-            sampler = self.cfg("sampler", str)
             params = self.common_params(DEFAULT_NODE_IDS["EmptyLatentImage"], seed, sampler)  
             emptylatentimage_node = {
                 "class_type": "EmptyLatentImage",
@@ -1400,14 +1401,15 @@ class Client(QObject):
             })
 
             last_loaded_lora = self.load_LoRAs(params, fail_on_missing_req_node = True)
-            if sampler == "lcm":
-                last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             workflow = self.cfg("workflow", str)
             params, last_loaded_lora = self.run_injected_custom_workflow(
                 workflow, seed, "txt2img", src_img, None, controlnet_src_imgs, resized_width, resized_height, width, height
             )
+
+        if sampler == "lcm":
+            last_loaded_lora = self.config_lcm(params, last_loaded_lora)
         
         upscaler_name = self.cfg("upscaler_name", str)
         if not disable_base_and_max_size and not upscaler_name == "None" and\
@@ -1428,9 +1430,9 @@ class Client(QObject):
         """Leave controlnet_src_imgs empty to not use controlnet."""
         last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size = self.setup_post(width, height)
         src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
+        sampler = self.cfg("sampler", str)
 
         if not self.cfg("custom_workflow", bool):
-            sampler = self.cfg("sampler", str)
             params = self.common_params(DEFAULT_NODE_IDS["VAEEncode"], seed, sampler)
             loadimage_node = {
                 "class_type": "LoadBase64Image",
@@ -1461,14 +1463,15 @@ class Client(QObject):
 
             self.set_img2img_batch(params, DEFAULT_NODE_IDS["VAEEncode"], True)
             last_loaded_lora = self.load_LoRAs(params, fail_on_missing_req_node = True)
-            if sampler == "lcm":
-                last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params, last_loaded_lora = self.run_injected_custom_workflow(
                 self.cfg("workflow", str), seed, "img2img", src_img, None, 
                 controlnet_src_imgs, resized_width, resized_height, width, height
             )
+
+        if sampler == "lcm":
+            last_loaded_lora = self.config_lcm(params, last_loaded_lora)
 
         upscaler_name = self.cfg("upscaler_name", str)
         if not disable_base_and_max_size and not upscaler_name == "None" and\
@@ -1491,10 +1494,10 @@ class Client(QObject):
         last_loaded_lora, seed, resized_width, resized_height, disable_base_and_max_size = self.setup_post(width, height)
         src_img = src_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
         mask_img = mask_img.scaled(resized_width, resized_height, Qt.KeepAspectRatio)
+        sampler = self.cfg("sampler", str)
 
         if not self.cfg("custom_workflow", bool):
             preserve = self.cfg("inpaint_fill", str) == "preserve"
-            sampler = self.cfg("sampler", str)
 
             params = self.common_params(
                 DEFAULT_NODE_IDS["SetLatentNoiseMask"] if preserve else DEFAULT_NODE_IDS["VAEEncodeForInpaint"],
@@ -1573,13 +1576,14 @@ class Client(QObject):
 
             self.set_img2img_batch(params, VAEEncode_id, True)
             last_loaded_lora = self.load_LoRAs(params, fail_on_missing_req_node = True)
-            if sampler == "lcm":
-                last_loaded_lora = self.config_lcm(params, last_loaded_lora)
             self.apply_controlnet(params, controlnet_src_imgs, resized_width, resized_height, True)
         else:
             params, last_loaded_lora = self.run_injected_custom_workflow(self.cfg("workflow", str), seed,
                                      "inpaint", src_img, mask_img, controlnet_src_imgs, 
                                      resized_width, resized_height, width, height)
+            
+        if sampler == "lcm":
+            last_loaded_lora = self.config_lcm(params, last_loaded_lora)
         
         upscaler_name = self.cfg("upscaler_name", str)
         if not disable_base_and_max_size and not upscaler_name == "None" and\

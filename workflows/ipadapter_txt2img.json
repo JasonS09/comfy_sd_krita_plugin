@@ -1,4 +1,22 @@
 {
+    "LoadBase64Image": {
+        "class_type": "LoadBase64Image",
+        "inputs": {
+            "image": "<<SelectedImage>>"
+        }
+    },
+    "ModelSamplingDiscrete": {
+        "_comment": "Use as model input for KSampler when using lcm.",
+        "class_type": "ModelSamplingDiscrete",
+        "inputs": {
+            "model": [
+                "31",
+                0
+            ],
+            "sampling": "lcm",
+            "sznr": false
+        }
+    },
     "1": {
         "inputs": {
             "clip_name": "ip-adapter_sd15-image-encoder.bin"
@@ -7,7 +25,7 @@
     },
     "IPAdapterModelLoader": {
         "inputs": {
-            "ipadapter_file": "ip-adapter-plus_sd15.bin"
+            "ipadapter_file": "ip-adapter_sd15.safetensors"
         },
         "class_type": "IPAdapterModelLoader"
     },
@@ -31,7 +49,7 @@
         "inputs": {
             "text": "<<Prompt>>",
             "clip": [
-                "<<LastLoadedLora|4>>",
+                "<<LastLoadedLora|4>>", 
                 1
             ]
         },
@@ -95,7 +113,7 @@
         },
         "class_type": "VAEDecode"
     },
-    "20": {
+    "9": {
         "inputs": {
             "filename_prefix": "ComfyUI",
             "images": [
@@ -107,33 +125,26 @@
     },
     "31": {
         "inputs": {
-            "weight": 1.0,
-            "model": [
-                "<<LastLoadedLora|4>>",
-                0
-            ],
+            "weight": 0.8,
+            "noise": 0,
+            "weight_type": "original",
             "ipadapter": [
                 "IPAdapterModelLoader",
                 0
             ],
-            "clip_vision_output": [
-                "33",
-                0
-            ]
-        },
-        "class_type": "IPAdapterApply"
-    },
-    "33": {
-        "inputs": {
             "clip_vision": [
                 "1",
                 0
             ],
             "image": [
-                "LoadImage",
+                "LoadBase64Image",
+                0
+            ],
+            "model": [
+                "<<LastLoadedLora|4>>",
                 0
             ]
         },
-        "class_type": "IPAdapterCLIPVisionEncode"
+        "class_type": "IPAdapterApply"
     }
 }

@@ -96,19 +96,6 @@
             ]
         }
     },
-    "SetLatentNoiseMask": {
-        "class_type": "SetLatentNoiseMask",
-        "inputs": {
-            "samples": [
-                "VAEEncode",
-                0
-            ],
-            "mask": [
-                "LoadBase64ImageMask",
-                0
-            ]
-        }
-    },
     "3": {
         "class_type": "KSampler",
         "inputs": {
@@ -119,7 +106,7 @@
                 0
             ],
             "latent_image": [
-                "SetLatentNoiseMask",
+                "VAEEncode",
                 0
             ],
             "negative": [
@@ -140,13 +127,6 @@
         "class_type": "LoadBase64Image",
         "inputs": {
             "image": "<<SelectedImage>>"
-        }
-    },
-    "LoadBase64ImageMask": {
-        "class_type": "LoadBase64ImageMask",
-        "inputs": {
-            "image": "<<CurrentLayerAsMask>>",
-            "channel": "alpha"
         }
     },
     "VAEEncode": {
