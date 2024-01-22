@@ -247,7 +247,7 @@ class Script(QObject):
             if (has_selection or mode != "upscale") and (image.width() != width or image.height() != height):
                 print(f"Rescaling image to selection: {width}x{height}")
                 image = image.scaled(
-                    width, height, transformMode=Qt.SmoothTransformation
+                    round(width), round(height), transformMode=Qt.SmoothTransformation
                 )
 
             # Resize (not scale!) canvas if image is larger (i.e. outpainting or Upscale was used)
@@ -271,11 +271,11 @@ class Script(QObject):
             # Don't fail silently for setPixelData(); fails if bit depth or number of channels mismatch
             if not skip_check_pixel_data:
                 size = ba.size()
-                expected = layer.pixelData(int(x), int(y), int(width), int(height)).size()
+                expected = layer.pixelData(round(x), round(y), round(width), round(height)).size()
                 assert expected == size, f"Raw data size: {size}, Expected size: {expected}"
 
             print(f"inserting at x: {x}, y: {y}, w: {width}, h: {height}")
-            layer.setPixelData(ba, int(x), int(y), int(width), int(height))
+            layer.setPixelData(ba, round(x), round(y), round(width), round(height))
             self._inserted_layers.append(layer)
 
             return layer
